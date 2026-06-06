@@ -12,6 +12,9 @@ def test_health_check(client):
     """Testa se a API está online e retornando status 200"""
     response = client.get('/')
     
+    assert response.status_code == 200
+    assert b"sucesso" in response.data
+    
     # O teste só passa se o status for 200 (OK)
     assert response.status_code == 200
     
