@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # Nosso Banco de Dados PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: finance_db
+    restart: always
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: rootpassword
+      POSTGRES_DB: finance_saas
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # Nossa futura API em Python (Flask)
+  api:
+    build: ./backend
+    container_name: finance_api
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://root:rootpassword@db:5432/finance_saas
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

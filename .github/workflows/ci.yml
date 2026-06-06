@@ -1,0 +1,31 @@
+name: Backend CI
+
+# Define que a esteira vai rodar toda vez que fizermos um push para a main
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest # O GitHub sobe uma máquina virtual Linux vazia
+
+    steps:
+    - name: Clonar o código do repositório
+      uses: actions/checkout@v3
+
+    - name: Configurar o Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Instalar as dependências do projeto
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r backend/requirements.txt
+
+    - name: Rodar os testes automatizados com Pytest
+      run: |
+        cd backend
+        pytest
