@@ -98,3 +98,24 @@ def get_transactions():
         "total_parcelas": t.total_parcelas,
         "grupo_id": t.grupo_parcelamento_id
     } for t in transacoes]), 200
+
+@transactions_bp.route('/<transaction_id>', methods=['PUT'])
+def update_transaction(transaction_id):
+    transacao = Transaction.query.get(transaction_id)
+    
+    if not transacao:
+        return jsonify({"erro": "Transação não encontrada"}), 404
+
+    data = request.get_json()
+
+    # Atualiza apenas os campos que foram enviados na requisição
+    if 'descricao' in data:
+        transacao.descricao = data['descricao']
+    if 'valor' in data:
+        transacao.valor = data['valor']
+    if 'pago' in data:
+        transacao.pago = data['pago'] # Recebe True ou False
+
+    db.session.commit()
+
+    return jsonify({"mensagem": "Transação atualizada com sucesso!"}), 200

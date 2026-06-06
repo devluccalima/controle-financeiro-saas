@@ -7,6 +7,7 @@ from routes.users import users_bp
 from routes.transactions import transactions_bp
 from routes.accounts import accounts_bp
 from routes.categories import categories_bp
+from routes.dashboard import dashboard_bp
 
 app = Flask(__name__)
 
@@ -21,8 +22,10 @@ db.init_app(app)
 # Tudo que vier de users_bp terá automaticamente o prefixo /users
 app.register_blueprint(users_bp, url_prefix='/users')
 app.register_blueprint(transactions_bp, url_prefix='/transactions')
-app.register_blueprint(accounts_bp, url_prefix='/accounts')      # NOVA
+app.register_blueprint(accounts_bp, url_prefix='/accounts')
 app.register_blueprint(categories_bp, url_prefix='/categories')
+app.register_blueprint(dashboard_bp, url_prefix='/dashboard')
+
 
 # Rota base (Health Check) mantida aqui para os testes de CI/CD
 @app.route('/', methods=['GET'])
