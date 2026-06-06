@@ -3,10 +3,8 @@ from werkzeug.security import generate_password_hash
 from database import db
 from models import User
 
-# Cria o Blueprint para os usuários
 users_bp = Blueprint('users', __name__)
 
-# Note que agora usamos @users_bp em vez de @app
 @users_bp.route('/', methods=['POST'])
 def create_user():
     data = request.get_json()
@@ -25,12 +23,21 @@ def create_user():
 
     db.session.add(novo_usuario)
     db.session.commit()
+    
+    # Força a atualização do objeto com os dados gerados pelo banco (como o ID)
+    db.session.refresh(novo_usuario)
 
+    # Retorno padronizado e direto
     return jsonify({
         "mensagem": "Usuário criado com sucesso!",
-        "usuario": {
-            "id": novo_usuario.id,
-            "nome": novo_usuario.nome,
-            "email": novo_usuario.email
-        }
+        "id": novo_usuario.id
     }), 201
+
+@users_bp.route('/', methods=['GET'])
+def get_users():
+    usuarios = User.query.all()
+    return jsonify([{
+        "id": u.id, 
+        "nome": u.nome, 
+        "email": u.email
+    } for u in usuarios]), 200
