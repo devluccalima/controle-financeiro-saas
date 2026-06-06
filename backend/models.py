@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from app import db
+from database import db
 
 def generate_uuid():
     return str(uuid.uuid4())
