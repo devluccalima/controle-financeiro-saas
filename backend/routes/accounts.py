@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from database import db
 from models import Account
 
@@ -24,3 +25,14 @@ def get_accounts():
         "nome": c.nome, 
         "tipo": c.tipo
     } for c in contas]), 200
+
+@accounts_bp.route('/<account_id>', methods=['DELETE'])
+@jwt_required()
+def delete_account(account_id):
+    conta = Account.query.get(account_id)
+    if not conta:
+        return jsonify({"erro": "Conta não encontrada"}), 404
+
+    db.session.delete(conta)
+    db.session.commit()
+    return jsonify({"mensagem": "Conta excluída com sucesso!"}), 200

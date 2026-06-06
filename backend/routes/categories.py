@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from database import db
 from models import Category
 
@@ -24,3 +25,14 @@ def get_categories():
         "nome": c.nome, 
         "tipo": c.tipo
     } for c in categorias]), 200
+
+@categories_bp.route('/<category_id>', methods=['DELETE'])
+@jwt_required()
+def delete_category(category_id):
+    categoria = Category.query.get(category_id)
+    if not categoria:
+        return jsonify({"erro": "Categoria não encontrada"}), 404
+
+    db.session.delete(categoria)
+    db.session.commit()
+    return jsonify({"mensagem": "Categoria excluída com sucesso!"}), 200

@@ -2,6 +2,7 @@ import uuid
 import calendar
 from datetime import datetime
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from database import db
 from models import Transaction
 
@@ -101,7 +102,7 @@ def get_transactions():
 
 @transactions_bp.route('/<transaction_id>', methods=['PUT'])
 def update_transaction(transaction_id):
-    transacao = Transaction.query.get(transaction_id)
+    transacao = db.session.get(Transaction, transaction_id)
     
     if not transacao:
         return jsonify({"erro": "Transação não encontrada"}), 404
@@ -119,3 +120,16 @@ def update_transaction(transaction_id):
     db.session.commit()
 
     return jsonify({"mensagem": "Transação atualizada com sucesso!"}), 200
+
+@transactions_bp.route('/<transaction_id>', methods=['DELETE'])
+@jwt_required() # <- EXIGE O TOKEN DE LOGIN
+def delete_transaction(transaction_id):
+    transacao = db.session.get(Transaction, transaction_id)
+    
+    if not transacao:
+        return jsonify({"erro": "Transação não encontrada"}), 404
+
+    db.session.delete(transacao)
+    db.session.commit()
+
+    return jsonify({"mensagem": "Transação excluída com sucesso!"}), 200

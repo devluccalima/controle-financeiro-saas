@@ -1,6 +1,5 @@
 name: Backend CI
 
-# Define que a esteira vai rodar toda vez que fizermos um push para a main
 on:
   push:
     branches: [ "main", "master" ]
@@ -9,24 +8,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest # O GitHub sobe uma máquina virtual Linux vazia
+    runs-on: ubuntu-latest # A máquina virtual do GitHub já vem com Docker instalado
 
     steps:
     - name: Clonar o código do repositório
       uses: actions/checkout@v3
 
-    - name: Configurar o Python 3.11
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
+    - name: Subir a infraestrutura com Docker Compose
+      run: docker-compose up -d --build
 
-    - name: Instalar as dependências do projeto
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r backend/requirements.txt
+    - name: Aguardar o banco de dados ficar pronto
+      run: sleep 5 # Pausa de segurança para o PostgreSQL ligar completamente
 
-    - name: Rodar os testes automatizados com Pytest
-      run: |
-        cd backend
-        export PYTHONPATH=$(pwd)
-        python -m pytest
+    - name: Rodar os testes automatizados dentro do container
+      # O parâmetro -T é obrigatório em CI/CD porque a nuvem não tem um terminal interativo
+      run: docker-compose exec -T api pytest
