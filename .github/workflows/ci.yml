@@ -28,4 +28,4 @@ jobs:
     - name: Rodar os testes automatizados com Pytest
       run: |
         cd backend
-        pytest
+        python -m pytest
