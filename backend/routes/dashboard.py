@@ -1,46 +1,34 @@
-from flask import Blueprint, request, jsonify
-from sqlalchemy import extract
-from database import db
-from models import Transaction, Category
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime
+from sqlalchemy import extract, func
+from models import db, Transaction # Ajuste o import do seu model conforme a sua estrutura
+
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/resumo', methods=['GET'])
+@jwt_required() # Protege a rota: só entra quem tem a chave (Token JWT)
 def get_resumo():
-    user_id = request.args.get('user_id')
+    user_id = get_jwt_identity()
     mes = request.args.get('mes')
     ano = request.args.get('ano')
 
-    if not all([user_id, mes, ano]):
-        return jsonify({"erro": "Parâmetros 'user_id', 'mes' e 'ano' são obrigatórios na URL"}), 400
+    # Base da query
+    base_query = Transaction.query.filter_by(user_id=user_id)
+    
+    if mes and ano:
+        base_query = base_query.filter(
+            extract('month', Transaction.data_vencimento) == int(mes),
+            extract('year', Transaction.data_vencimento) == int(ano)
+        )
 
-    # Busca as transações do usuário naquele mês/ano específico e junta com a tabela de categorias para saber o que é receita ou despesa
-    query = db.session.query(Transaction, Category).join(Category).filter(
-        Transaction.user_id == user_id,
-        extract('month', Transaction.data_vencimento) == int(mes),
-        extract('year', Transaction.data_vencimento) == int(ano)
-    ).all()
-
-    total_receitas = 0.0
-    total_despesas = 0.0
-    total_pendente = 0.0
-
-    for transacao, categoria in query:
-        valor = float(transacao.valor)
-        if categoria.tipo == 'receita':
-            total_receitas += valor
-        elif categoria.tipo == 'despesa':
-            total_despesas += valor
-            if not transacao.pago:
-                total_pendente += valor
-
-    saldo_livre = total_receitas - total_despesas
+    # Soma Entradas e Saídas
+    receitas = base_query.filter_by(tipo='receita').with_entities(func.sum(Transaction.valor)).scalar() or 0
+    despesas = base_query.filter_by(tipo='despesa').with_entities(func.sum(Transaction.valor)).scalar() or 0
 
     return jsonify({
-        "mes": mes,
-        "ano": ano,
-        "total_receitas": round(total_receitas, 2),
-        "total_despesas": round(total_despesas, 2),
-        "total_pendente": round(total_pendente, 2),
-        "saldo_livre": round(saldo_livre, 2)
+        "receitas": float(receitas),
+        "despesas": float(despesas),
+        "saldo_livre": float(receitas - despesas)
     }), 200

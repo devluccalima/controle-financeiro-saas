@@ -2,9 +2,10 @@ import uuid
 import calendar
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity # CORREÇÃO: Adicionado get_jwt_identity
 from database import db
-from models import Transaction
+from models import Transaction, Account # CORREÇÃO: Adicionado Account
+from sqlalchemy import extract
 
 transactions_bp = Blueprint('transactions', __name__)
 
@@ -17,119 +18,149 @@ def add_months(sourcedate, months):
     return datetime(year, month, day).date()
 
 @transactions_bp.route('/', methods=['POST'])
+@jwt_required()
 def create_transaction():
-    data = request.get_json()
-
-    # Validação básica dos campos obrigatórios
-    required_fields = ['user_id', 'account_id', 'category_id', 'descricao', 'valor', 'data_vencimento']
-    if not all(field in data for field in required_fields):
-        return jsonify({"erro": "Campos obrigatórios faltando!"}), 400
+    user_id = get_jwt_identity()
+    dados = request.json
 
     try:
-        data_venc_inicial = datetime.strptime(data['data_vencimento'], '%Y-%m-%d').date()
-        tipo = data.get('tipo_lancamento', 'unico')
+        data_recebida = dados.get('data')
+        natureza = dados.get('natureza')
+        tipo = dados.get('tipo')
+        account_id = dados.get('account_id')
+        category_id = dados.get('category_id')
+        valor_total = float(dados.get('valor', 0))
+        descricao_base = dados.get('descricao', '')
         
-        # Cenário 1: Compra Parcelada
-        if tipo == 'parcelado':
-            total_parcelas = int(data.get('total_parcelas', 1))
-            grupo_id = str(uuid.uuid4()) # Une todas as parcelas
-            
-            # Divide o valor total pelo número de parcelas
-            valor_parcela = float(data['valor']) / total_parcelas
-            
-            novas_transacoes = []
-            for i in range(total_parcelas):
-                nova_data = add_months(data_venc_inicial, i)
-                transacao = Transaction(
-                    user_id=data['user_id'],
-                    account_id=data['account_id'],
-                    category_id=data['category_id'],
-                    descricao=f"{data['descricao']} ({i+1}/{total_parcelas})",
-                    valor=valor_parcela,
-                    data_vencimento=nova_data,
-                    tipo_lancamento='parcelado',
-                    grupo_parcelamento_id=grupo_id,
-                    parcela_atual=i+1,
-                    total_parcelas=total_parcelas
-                )
-                novas_transacoes.append(transacao)
-                db.session.add(transacao)
-                
-            db.session.commit()
-            return jsonify({
-                "mensagem": f"{total_parcelas} parcelas geradas com sucesso!",
-                "grupo_id": grupo_id
-            }), 201
+        is_parcelado = dados.get('is_parcelado', False)
+        total_parcelas = int(dados.get('total_parcelas', 1))
 
-        # Cenário 2: Compra Única ou Fixa
+        # Verifica se a conta e categoria pertencem a este usuário
+        conta = Account.query.filter_by(id=account_id, user_id=user_id).first()
+        if not conta:
+            return jsonify({"erro": "Conta bancária inválida ou não pertence ao usuário."}), 400
+
+        # Lógica de Data Base
+        hoje = datetime.now()
+        if natureza == 'fixa':
+            dia = min(int(data_recebida), 28) 
+            data_base = datetime(hoje.year, hoje.month, dia).date()
         else:
+            data_base = datetime.strptime(data_recebida, '%d/%m/%Y').date()
+
+        # ==========================================
+        # MOTOR DE PARCELAMENTO
+        # ==========================================
+        if is_parcelado and total_parcelas > 1:
+            valor_parcela = valor_total / total_parcelas
+            grupo_id = str(uuid.uuid4()) # Cria um ID único para amarrar todas as faturas
+
+            for i in range(total_parcelas):
+                data_vencimento_parcela = add_months(data_base, i)
+                
+                nova_transacao = Transaction(
+                    user_id=user_id,
+                    account_id=account_id,
+                    category_id=category_id,
+                    tipo=tipo,
+                    natureza=natureza,
+                    descricao=f"{descricao_base} ({i+1}/{total_parcelas})", # Ex: Decolar (1/8)
+                    valor=valor_parcela,
+                    data_vencimento=data_vencimento_parcela,
+                    pago=True if (tipo == 'despesa' and i == 0) else False, # Assume a primeira paga e o resto pendente
+                    parcela_atual=i+1,
+                    total_parcelas=total_parcelas,
+                    grupo_parcelamento_id=grupo_id
+                )
+                db.session.add(nova_transacao)
+        else:
+            # LANÇAMENTO NORMAL (À Vista / Fixo)
             nova_transacao = Transaction(
-                user_id=data['user_id'],
-                account_id=data['account_id'],
-                category_id=data['category_id'],
-                descricao=data['descricao'],
-                valor=data['valor'],
-                data_vencimento=data_venc_inicial,
-                tipo_lancamento=tipo
+                user_id=user_id,
+                account_id=account_id,
+                category_id=category_id,
+                tipo=tipo,
+                natureza=natureza,
+                descricao=descricao_base,
+                valor=valor_total,
+                data_vencimento=data_base,
+                pago=True if tipo == 'despesa' else False
             )
             db.session.add(nova_transacao)
-            db.session.commit()
-            
-            return jsonify({
-                "mensagem": "Transação criada com sucesso!",
-                "id": nova_transacao.id
-            }), 201
+
+        db.session.commit()
+        return jsonify({"mensagem": "Transação salva com sucesso!"}), 201
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({"erro": str(e)}), 500
+        return jsonify({"erro": f"Falha ao processar transação: {str(e)}"}), 500
     
 @transactions_bp.route('/', methods=['GET'])
+@jwt_required() # CORREÇÃO: Protegendo a rota com Token
 def get_transactions():
-    # Ordena para mostrar as faturas mais antigas primeiro
-    transacoes = Transaction.query.order_by(Transaction.data_vencimento).all()
+    user_id = get_jwt_identity()
+    mes = request.args.get('mes')
+    ano = request.args.get('ano')
+
+    # Filtra transações do usuário no mês e ano selecionado
+    query = Transaction.query.filter_by(user_id=user_id)
+    
+    if mes and ano:
+        query = query.filter(
+            extract('month', Transaction.data_vencimento) == int(mes),
+            extract('year', Transaction.data_vencimento) == int(ano)
+        )
+    
+    transacoes = query.all()
     
     return jsonify([{
         "id": t.id,
         "descricao": t.descricao,
-        "valor": float(t.valor), # Converte Numeric para float pro JSON
-        "data_vencimento": t.data_vencimento.strftime('%Y-%m-%d'),
-        "tipo_lancamento": t.tipo_lancamento,
-        "parcela_atual": t.parcela_atual,
+        "valor": float(t.valor),
+        "tipo": t.tipo,
+        "data_vencimento": t.data_vencimento.isoformat(),
+        "categoria_nome": t.category.nome, # Certifique-se que o relacionamento existe
+        "conta_nome": t.account.nome,
         "total_parcelas": t.total_parcelas,
-        "grupo_id": t.grupo_parcelamento_id
+        "parcela_atual": t.parcela_atual
     } for t in transacoes]), 200
 
 @transactions_bp.route('/<transaction_id>', methods=['PUT'])
+@jwt_required() # CORREÇÃO: Protegendo a rota
 def update_transaction(transaction_id):
-    transacao = db.session.get(Transaction, transaction_id)
+    user_id = get_jwt_identity()
+    
+    # CORREÇÃO: Garante que a transação existe E pertence ao usuário logado
+    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
     
     if not transacao:
-        return jsonify({"erro": "Transação não encontrada"}), 404
+        return jsonify({"erro": "Transação não encontrada ou acesso negado"}), 404
 
     data = request.get_json()
 
-    # Atualiza apenas os campos que foram enviados na requisição
     if 'descricao' in data:
         transacao.descricao = data['descricao']
     if 'valor' in data:
         transacao.valor = data['valor']
     if 'pago' in data:
-        transacao.pago = data['pago'] # Recebe True ou False
+        transacao.pago = data['pago']
 
     db.session.commit()
-
     return jsonify({"mensagem": "Transação atualizada com sucesso!"}), 200
 
 @transactions_bp.route('/<transaction_id>', methods=['DELETE'])
-@jwt_required() # <- EXIGE O TOKEN DE LOGIN
+@jwt_required()
 def delete_transaction(transaction_id):
-    transacao = db.session.get(Transaction, transaction_id)
+    user_id = get_jwt_identity()
+    
+    # CORREÇÃO: Garante que a transação pertence ao usuário logado
+    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
     
     if not transacao:
-        return jsonify({"erro": "Transação não encontrada"}), 404
+        return jsonify({"erro": "Transação não encontrada ou acesso negado"}), 404
 
-    db.session.delete(transacao)
+    # CORREÇÃO: Soft Delete (melhor prática para histórico financeiro)
+    transacao.deleted_at = datetime.now()
     db.session.commit()
 
     return jsonify({"mensagem": "Transação excluída com sucesso!"}), 200
