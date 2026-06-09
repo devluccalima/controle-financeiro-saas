@@ -2,21 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
-import { useRouter, useFocusEffect } from 'expo-router';
-import { InternalBackground } from '../../components/InternalBackground'; // Ajuste o caminho se necessário
-import api from '../../services/api'; // Ajuste o caminho se necessário
+import { useRouter } from 'expo-router';
+import { InternalBackground } from '../../components/InternalBackground'; 
+import api from '../../services/api'; 
 
 export default function DashboardScreen() {
   const router = useRouter();
 
-  // 1. O MOTOR DO TEMPO (Começa no mês atual)
+  // 1. O MOTOR DO TEMPO
   const [dataFiltro, setDataFiltro] = useState(new Date());
+  const [lastTap, setLastTap] = useState(0); // Estado para controlar o Double-Tap
 
-  // Formata a data para exibir bonito (Ex: "Junho 2026")
   const nomeMes = dataFiltro.toLocaleDateString('pt-BR', { month: 'long' });
   const mesAtualFormatado = nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1) + ' ' + dataFiltro.getFullYear();
 
-  // 2. ESTADOS FINANCEIOS
+  // 2. ESTADOS FINANCEIROS
   const [receitas, setReceitas] = useState(0);
   const [despesas, setDespesas] = useState(0);
   const [saldoLivre, setSaldoLivre] = useState(0);
@@ -26,7 +26,6 @@ export default function DashboardScreen() {
   const [modalDetalhesVisible, setModalDetalhesVisible] = useState(false);
   const [transacaoSelecionada, setTransacaoSelecionada] = useState<any>(null);
 
-  // 4. ATUALIZAÇÃO DE DADOS (Dispara ao abrir a tela ou mudar de mês)
   useEffect(() => {
     carregarDashboard();
   }, [dataFiltro]);
@@ -36,7 +35,6 @@ export default function DashboardScreen() {
       const mes = dataFiltro.getMonth() + 1;
       const ano = dataFiltro.getFullYear();
 
-      // Aqui estamos mandando o mês e ano para o Python filtrar
       const resumoResponse = await api.get(`/dashboard/resumo/?mes=${mes}&ano=${ano}`);
       setReceitas(resumoResponse.data.receitas || 0);
       setDespesas(resumoResponse.data.despesas || 0);
@@ -50,11 +48,21 @@ export default function DashboardScreen() {
     }
   };
 
-  // Funções de Navegação de Tempo
   const mudarMes = (delta: number) => {
     const novaData = new Date(dataFiltro);
     novaData.setMonth(novaData.getMonth() + delta);
     setDataFiltro(novaData);
+  };
+
+  // LÓGICA DO DOUBLE-TAP: Se clicar duas vezes em menos de 300ms, volta para o mês atual
+  const handleResetMes = () => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+    if (now - lastTap < DOUBLE_PRESS_DELAY) {
+      setDataFiltro(new Date());
+    } else {
+      setLastTap(now);
+    }
   };
 
   const formatarMoeda = (valor: number) => {
@@ -77,6 +85,39 @@ export default function DashboardScreen() {
     setModalDetalhesVisible(true);
   };
 
+  const handleEditar = (transacao: any) => {
+    setModalDetalhesVisible(false);
+    // Navega para a tela de edição passando o ID da transação
+    router.push({
+      pathname: '/nova-transacao',
+      params: { id: transacao.id }
+    });
+  };
+
+  const handleExcluir = async (id: string) => {
+    Alert.alert(
+      "Excluir Lançamento",
+      "Tem certeza que deseja apagar essa transação?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Excluir", 
+          style: "destructive", 
+          onPress: async () => {
+            try {
+              await api.delete(`/transactions/${id}`);
+              setModalDetalhesVisible(false);
+              carregarDashboard(); // Recarrega os números da tela
+            } catch (error) {
+              console.error("Erro ao excluir:", error);
+              Alert.alert("Erro", "Não foi possível excluir o lançamento.");
+            }
+          } 
+        }
+      ]
+    );
+  };
+
   return (
     <InternalBackground>
       <ScrollView contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
@@ -97,12 +138,16 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* SELETOR DE MÊS */}
+        {/* SELETOR DE MÊS (AGORA COM GESTO DE RESET) */}
         <View style={styles.monthSelector}>
           <TouchableOpacity style={styles.monthBtn} activeOpacity={0.7} onPress={() => mudarMes(-1)}>
             <Feather name="chevron-left" size={24} color="#7B8DB0" />
           </TouchableOpacity>
-          <Text style={styles.monthText}>{mesAtualFormatado}</Text>
+          
+          <TouchableOpacity activeOpacity={1} onPress={handleResetMes}>
+            <Text style={styles.monthText}>{mesAtualFormatado}</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.monthBtn} activeOpacity={0.7} onPress={() => mudarMes(1)}>
             <Feather name="chevron-right" size={24} color="#7B8DB0" />
           </TouchableOpacity>
@@ -142,7 +187,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* LISTA DINÂMICA DE LANÇAMENTOS RECENTES */}
+        {/* LISTA DINÂMICA */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lançamentos do Mês</Text>
           
@@ -162,7 +207,6 @@ export default function DashboardScreen() {
                   </View>
                   <View>
                     <Text style={styles.transactionName}>{item.descricao}</Text>
-                    {/* Se for parcelado, mostra a parcela atual e o total, senão só a categoria */}
                     <Text style={styles.transactionCategory}>
                       {item.categoria_nome} {item.total_parcelas > 1 ? `(${item.parcela_atual}/${item.total_parcelas})` : ''}
                     </Text>
@@ -177,12 +221,12 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* BOTÃO FLUTUANTE DE NOVA TRANSAÇÃO */}
+      {/* BOTÃO FLUTUANTE */}
       <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => router.push('/nova-transacao')}>
         <Feather name="plus" size={32} color="#FFFFFF" />
       </TouchableOpacity>
 
-      {/* MODAL DE DETALHES DA TRANSAÇÃO */}
+      {/* MODAL DE DETALHES (AGORA COM DOIS BOTÕES LADO A LADO) */}
       <Modal visible={modalDetalhesVisible} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -221,10 +265,15 @@ export default function DashboardScreen() {
                   </View>
                 )}
 
-                {/* Botões de Ação Futuros */}
-                <View style={styles.modalActions}>
-                  <TouchableOpacity style={styles.deleteButton}>
-                    <Feather name="trash-2" size={20} color="#EF4444" />
+                {/* BOTÕES DE AÇÃO LADO A LADO */}
+                <View style={styles.modalActionsRow}>
+                  <TouchableOpacity style={styles.editButton} onPress={() => handleEditar(transacaoSelecionada)}>
+                    <Feather name="edit-2" size={18} color="#10B981" />
+                    <Text style={styles.editButtonText}>Editar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => handleExcluir(transacaoSelecionada.id)}>
+                    <Feather name="trash-2" size={18} color="#EF4444" />
                     <Text style={styles.deleteButtonText}>Excluir</Text>
                   </TouchableOpacity>
                 </View>
@@ -283,7 +332,11 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1A2540' },
   detailLabel: { color: '#7B8DB0', fontSize: 15 },
   detailValue: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  modalActions: { marginTop: 32, alignItems: 'center' },
-  deleteButton: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', width: '100%', justifyContent: 'center' },
+  
+  // Layout dos Botões lado a lado
+  modalActionsRow: { flexDirection: 'row', marginTop: 32, gap: 12, width: '100%' },
+  editButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', justifyContent: 'center' },
+  editButtonText: { color: '#10B981', fontSize: 16, fontWeight: 'bold' },
+  deleteButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', justifyContent: 'center' },
   deleteButtonText: { color: '#EF4444', fontSize: 16, fontWeight: 'bold' },
 });

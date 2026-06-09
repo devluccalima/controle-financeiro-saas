@@ -125,12 +125,35 @@ def get_transactions():
         "parcela_atual": t.parcela_atual
     } for t in transacoes]), 200
 
-@transactions_bp.route('/<transaction_id>', methods=['PUT'])
-@jwt_required() # CORREÇÃO: Protegendo a rota
-def update_transaction(transaction_id):
+@transactions_bp.route('/<transaction_id>', methods=['GET'])
+@jwt_required()
+def get_single_transaction(transaction_id):
     user_id = get_jwt_identity()
     
-    # CORREÇÃO: Garante que a transação existe E pertence ao usuário logado
+    # Busca a transação garantindo que é do usuário e não foi excluída
+    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
+    
+    if not transacao:
+        return jsonify({"erro": "Transação não encontrada"}), 404
+
+    return jsonify({
+        "id": transacao.id,
+        "descricao": transacao.descricao,
+        "valor": float(transacao.valor),
+        "tipo": transacao.tipo,
+        "natureza": transacao.natureza,
+        "data_vencimento": transacao.data_vencimento.isoformat(),
+        "account_id": transacao.account_id,
+        "category_id": transacao.category_id,
+        "pago": transacao.pago,
+        "is_parcelado": transacao.total_parcelas > 1,
+        "total_parcelas": transacao.total_parcelas
+    }), 200
+
+@transactions_bp.route('/<transaction_id>', methods=['PUT'])
+@jwt_required()
+def update_transaction(transaction_id):
+    user_id = get_jwt_identity()
     transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
     
     if not transacao:
@@ -138,12 +161,26 @@ def update_transaction(transaction_id):
 
     data = request.get_json()
 
-    if 'descricao' in data:
-        transacao.descricao = data['descricao']
-    if 'valor' in data:
-        transacao.valor = data['valor']
-    if 'pago' in data:
-        transacao.pago = data['pago']
+    # Atualiza todos os campos possíveis
+    if 'descricao' in data: transacao.descricao = data['descricao']
+    if 'valor' in data: transacao.valor = data['valor']
+    if 'pago' in data: transacao.pago = data['pago']
+    if 'tipo' in data: transacao.tipo = data['tipo']
+    if 'natureza' in data: transacao.natureza = data['natureza']
+    if 'category_id' in data: transacao.category_id = data['category_id']
+    if 'account_id' in data: transacao.account_id = data['account_id']
+    
+    # Formatação de Data no PUT
+    if 'data' in data:
+        try:
+            if transacao.natureza == 'fixa':
+                dia = min(int(data['data']), 28) 
+                hoje = datetime.now()
+                transacao.data_vencimento = datetime(hoje.year, hoje.month, dia).date()
+            else:
+                transacao.data_vencimento = datetime.strptime(data['data'], '%d/%m/%Y').date()
+        except ValueError:
+            pass # Ignora se a data vier mal formatada
 
     db.session.commit()
     return jsonify({"mensagem": "Transação atualizada com sucesso!"}), 200

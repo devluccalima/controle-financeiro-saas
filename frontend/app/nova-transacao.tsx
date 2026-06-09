@@ -1,25 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Modal, FlatList, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { InternalBackground } from '../components/InternalBackground';
 
 import api from '../services/api';
 
-// Paleta de cores para as Contas Bancárias (Cores dos principais bancos)
 const CORES_PALETA = [
-    '#8A05BE', // Roxo (Nubank)
-    '#FF6200', // Laranja (Itaú/Inter)
-    '#EF4444', // Vermelho (Santander/Bradesco)
-    '#10B981', // Verde (Carteira/Picpay)
-    '#0e75ca', // Azul (Caixa/Mercado Pago)
-    '#FBBF24', // Amarelo (Banco do Brasil)
+    '#8A05BE', '#FF6200', '#EF4444', '#10B981', '#0e75ca', '#FBBF24',
 ];
 
 export default function NovaTransacaoScreen() {
     const router = useRouter();
+    
+    // CAPTURA O ID DA ROTA (Se existir, estamos no modo EDIÇÃO)
+    const { id } = useLocalSearchParams();
+    const isEditMode = !!id;
 
-    // Função para pegar a data de hoje no formato DD/MM/AAAA
     const getDataAtual = () => {
         const hoje = new Date();
         const dia = String(hoje.getDate()).padStart(2, '0');
@@ -28,59 +25,90 @@ export default function NovaTransacaoScreen() {
         return `${dia}/${mes}/${ano}`;
     };
 
-    // 1. Estados Gerais
+    const [isLoading, setIsLoading] = useState(isEditMode); // Se for edição, começa carregando
     const [tipo, setTipo] = useState<'despesa' | 'receita'>('despesa');
     const [natureza, setNatureza] = useState<'variavel' | 'fixa'>('variavel');
     const [valor, setValor] = useState('');
     const [descricao, setDescricao] = useState('');
     const [data, setData] = useState(getDataAtual());
 
-    // 2. Estados de Listas vindas da API
     const [categorias, setCategorias] = useState<any[]>([]);
     const [contas, setContas] = useState<any[]>([]);
-
-    // 3. O Filtro Dinâmico de Categorias (Depende das listas e do tipo)
     const categoriasFiltradas = categorias.filter(cat => cat.tipo === tipo);
 
-    // 4. Estados de Seleção dos Modais
     const [categoriaSelecionada, setCategoriaSelecionada] = useState<{ id: string, nome: string, cor: string } | null>(null);
     const [modalCategoriaVisible, setModalCategoriaVisible] = useState(false);
     
     const [contaSelecionada, setContaSelecionada] = useState<{ id: string, nome: string, cor: string } | null>(null);
     const [modalContaVisible, setModalContaVisible] = useState(false);
 
-    // 5. Estados de Criação de Nova Conta
     const [modalCriarContaVisible, setModalCriarContaVisible] = useState(false);
     const [novaContaNome, setNovaContaNome] = useState('');
     const [novaContaCor, setNovaContaCor] = useState('#8A05BE');
 
-    // 6. Estados de Parcelamento
     const [isParcelado, setIsParcelado] = useState(false);
     const [parcelas, setParcelas] = useState('');
 
-    // Lógica matemática para o preview da parcela em tempo real
     const valorNumericoTemp = parseFloat(valor.replace(/\./g, '').replace(',', '.')) || 0;
     const qtdParcelas = parseInt(parcelas) || 1;
     const valorParcelaPreview = (valorNumericoTemp / qtdParcelas).toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
 
-    // --- CARREGAMENTO INICIAL DO BANCO DE DADOS ---
+    // RODA AO ABRIR A TELA
     useEffect(() => {
         carregarDadosDoBanco();
     }, []);
 
     const carregarDadosDoBanco = async () => {
         try {
+            // 1. Carrega as listas essenciais primeiro
             const contasResponse = await api.get('/accounts/');
-            setContas(contasResponse.data);
+            const contasData = contasResponse.data;
+            setContas(contasData);
 
             const categoriasResponse = await api.get('/categories/');
-            setCategorias(categoriasResponse.data);
+            const categoriasData = categoriasResponse.data;
+            setCategorias(categoriasData);
+
+            // 2. Se for modo EDIÇÃO, busca a transação e preenche os campos
+            if (isEditMode) {
+                const transacaoResponse = await api.get(`/transactions/${id}`);
+                const t = transacaoResponse.data;
+
+                setTipo(t.tipo);
+                setNatureza(t.natureza);
+                setDescricao(t.descricao);
+                
+                // Formata o valor de 150.5 para "150,50"
+                setValor(parseFloat(t.valor).toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'));
+                
+                // Formata a data de YYYY-MM-DD para DD/MM/YYYY
+                if (t.natureza === 'fixa') {
+                    setData(t.data_vencimento.split('-')[2]); // Pega só o dia
+                } else {
+                    const [ano, mes, dia] = t.data_vencimento.split('-');
+                    setData(`${dia}/${mes}/${ano}`);
+                }
+
+                // Acha a conta e a categoria na lista e seleciona
+                const contaEncontrada = contasData.find((c: any) => c.id === t.account_id);
+                if (contaEncontrada) setContaSelecionada(contaEncontrada);
+
+                const categoriaEncontrada = categoriasData.find((c: any) => c.id === t.category_id);
+                if (categoriaEncontrada) setCategoriaSelecionada(categoriaEncontrada);
+
+                // Em edição, geralmente não permitimos alterar o parcelamento total para não quebrar outras parcelas
+                setIsParcelado(t.is_parcelado);
+                if (t.is_parcelado) {
+                    setParcelas(String(t.total_parcelas));
+                }
+            }
         } catch (error) {
             console.error("Erro ao buscar dados:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
-    // Máscara do Valor
     const handleValorChange = (text: string) => {
         const apenasNumeros = text.replace(/\D/g, '');
         if (!apenasNumeros) { setValor(''); return; }
@@ -88,63 +116,35 @@ export default function NovaTransacaoScreen() {
         setValor(valorDecimal.replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'));
     };
 
-    // MÁSCARA DA DATA
     const handleDataChange = (text: string) => {
         let apenasNumeros = text.replace(/\D/g, '');
-
         if (natureza === 'fixa') {
             if (apenasNumeros.length > 2) apenasNumeros = apenasNumeros.slice(0, 2);
             setData(apenasNumeros);
             return;
         }
-        
         if (apenasNumeros.length > 8) apenasNumeros = apenasNumeros.slice(0, 8);
-
         let formatada = apenasNumeros;
-        if (apenasNumeros.length > 2) {
-            formatada = `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2)}`;
-        }
-        if (apenasNumeros.length > 4) {
-            formatada = `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4)}`;
-        }
-
+        if (apenasNumeros.length > 2) formatada = `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2)}`;
+        if (apenasNumeros.length > 4) formatada = `${apenasNumeros.slice(0, 2)}/${apenasNumeros.slice(2, 4)}/${apenasNumeros.slice(4)}`;
         setData(formatada);
     };
 
-    // Fluxo Inteligente: Cria a conta na API, atualiza a lista e volta para o Modal 1
     const handleCriarContaRapida = async () => {
         if (!novaContaNome) return;
-
         try {
-            const response = await api.post('/accounts/', {
-                nome: novaContaNome,
-                tipo: 'Corrente',
-                cor: novaContaCor
-            });
-
-            const novaContaObj = {
-                id: response.data.id,
-                nome: novaContaNome,
-                tipo: 'Corrente',
-                cor: novaContaCor
-            };
-
+            const response = await api.post('/accounts/', { nome: novaContaNome, tipo: 'Corrente', cor: novaContaCor });
+            const novaContaObj = { id: response.data.id, nome: novaContaNome, tipo: 'Corrente', cor: novaContaCor };
             setContas([...contas, novaContaObj]);
             setNovaContaNome('');
             setNovaContaCor('#8A05BE');
             setModalCriarContaVisible(false);
-            
-            setTimeout(() => {
-                setModalContaVisible(true);
-            }, 100);
-
+            setTimeout(() => { setModalContaVisible(true); }, 100);
         } catch (error) {
-            console.error("Erro ao criar conta:", error);
             alert("Não foi possível salvar a nova conta.");
         }
     };
 
-    // Fluxo Principal de Salvar o Lançamento
     const handleSalvar = async () => {
         if (!valor || !descricao || !data || !categoriaSelecionada || !contaSelecionada) {
             alert("Por favor, preencha todos os campos obrigatórios.");
@@ -166,9 +166,13 @@ export default function NovaTransacaoScreen() {
                 total_parcelas: isParcelado ? parseInt(parcelas) : 1
             };
 
-            await api.post('/transactions/', payload);
+            // SE TIVER ID (EDIÇÃO), FAZ PUT. SE NÃO, FAZ POST.
+            if (isEditMode) {
+                await api.put(`/transactions/${id}`, payload);
+            } else {
+                await api.post('/transactions/', payload);
+            }
             
-            // Sucesso! Volta para o Dashboard forçando atualização
             router.replace('/dashboard'); 
 
         } catch (error) {
@@ -177,6 +181,16 @@ export default function NovaTransacaoScreen() {
         }
     };
 
+    if (isLoading) {
+        return (
+            <InternalBackground>
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#10B981" />
+                </View>
+            </InternalBackground>
+        );
+    }
+
     return (
         <InternalBackground>
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -184,13 +198,12 @@ export default function NovaTransacaoScreen() {
                     <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                         <Feather name="arrow-left" size={24} color="#7B8DB0" />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Novo Lançamento</Text>
+                    <Text style={styles.headerTitle}>{isEditMode ? 'Editar Lançamento' : 'Novo Lançamento'}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
 
-                    {/* SELETOR DE TIPO */}
                     <View style={styles.typeSelector}>
                         <TouchableOpacity style={[styles.typeButton, tipo === 'despesa' && styles.typeButtonDespesaActive]} onPress={() => { setTipo('despesa'); setCategoriaSelecionada(null); }}>
                             <Feather name="arrow-down-circle" size={20} color={tipo === 'despesa' ? '#EF4444' : '#7B8DB0'} />
@@ -202,52 +215,32 @@ export default function NovaTransacaoScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* VALOR GIGANTE */}
                     <View style={styles.amountContainer}>
                         <Text style={styles.currencySymbol}>R$</Text>
                         <TextInput style={[styles.amountInput, { color: tipo === 'despesa' ? '#EF4444' : '#10B981' }]} value={valor} onChangeText={handleValorChange} keyboardType="number-pad" placeholder="0,00" placeholderTextColor="#4A5980" maxLength={15} />
                     </View>
 
-                    {/* NATUREZA */}
                     <Text style={styles.label}>Natureza da Transação</Text>
                     <View style={styles.natureSelector}>
-                        <TouchableOpacity
-                            style={[styles.natureButton, natureza === 'variavel' && styles.natureButtonActive]}
-                            onPress={() => {
-                                setNatureza('variavel');
-                                setData(getDataAtual());
-                            }}
-                        >
+                        <TouchableOpacity style={[styles.natureButton, natureza === 'variavel' && styles.natureButtonActive]} onPress={() => { setNatureza('variavel'); setData(getDataAtual()); }}>
                             <Feather name="activity" size={16} color={natureza === 'variavel' ? '#FFFFFF' : '#7B8DB0'} />
                             <Text style={[styles.natureText, natureza === 'variavel' && { color: '#FFFFFF' }]}>Variável</Text>
                         </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.natureButton, natureza === 'fixa' && styles.natureButtonActive]}
-                            onPress={() => {
-                                setNatureza('fixa');
-                                setData(String(new Date().getDate()).padStart(2, '0'));
-                                setIsParcelado(false); 
-                            }}
-                        >
+                        <TouchableOpacity style={[styles.natureButton, natureza === 'fixa' && styles.natureButtonActive]} onPress={() => { setNatureza('fixa'); setData(String(new Date().getDate()).padStart(2, '0')); setIsParcelado(false); }}>
                             <Feather name="anchor" size={16} color={natureza === 'fixa' ? '#FFFFFF' : '#7B8DB0'} />
                             <Text style={[styles.natureText, natureza === 'fixa' && { color: '#FFFFFF' }]}>Fixa</Text>
                         </TouchableOpacity>
                     </View>
 
-                    {/* PARCELAMENTO */}
-                    {tipo === 'despesa' && natureza === 'variavel' && (
+                    {/* BLOQUEIA A EDIÇÃO DE PARCELAMENTO SE FOR MODO EDIÇÃO PARA EVITAR BUGS COMPLEXOS */}
+                    {tipo === 'despesa' && natureza === 'variavel' && !isEditMode && (
                         <View style={styles.installmentContainer}>
                             <View style={[styles.installmentToggleRow, isParcelado && { marginBottom: 16 }]}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                     <Feather name="layers" size={18} color="#7B8DB0" />
                                     <Text style={styles.installmentLabel}>Compra Parcelada?</Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={[styles.toggleTrack, isParcelado && styles.toggleTrackActive]}
-                                    onPress={() => setIsParcelado(!isParcelado)}
-                                    activeOpacity={0.8}
-                                >
+                                <TouchableOpacity style={[styles.toggleTrack, isParcelado && styles.toggleTrackActive]} onPress={() => setIsParcelado(!isParcelado)} activeOpacity={0.8}>
                                     <View style={[styles.toggleThumb, isParcelado && styles.toggleThumbActive]} />
                                 </TouchableOpacity>
                             </View>
@@ -255,28 +248,16 @@ export default function NovaTransacaoScreen() {
                             {isParcelado && (
                                 <View>
                                     <View style={styles.inputContainer}>
-                                        <TextInput
-                                            style={[styles.inputText, { textAlign: 'center' }]}
-                                            placeholder="Quantidade de Parcelas (Ex: 10)"
-                                            placeholderTextColor="#4A5980"
-                                            value={parcelas}
-                                            onChangeText={setParcelas}
-                                            keyboardType="number-pad"
-                                            maxLength={2}
-                                        />
+                                        <TextInput style={[styles.inputText, { textAlign: 'center' }]} placeholder="Quantidade de Parcelas (Ex: 10)" placeholderTextColor="#4A5980" value={parcelas} onChangeText={setParcelas} keyboardType="number-pad" maxLength={2} />
                                     </View>
-
                                     {valorNumericoTemp > 0 && parcelas ? (
-                                        <Text style={styles.installmentPreview}>
-                                            Sua dívida será dividida em {parcelas}x de R$ {valorParcelaPreview}
-                                        </Text>
+                                        <Text style={styles.installmentPreview}>Sua dívida será dividida em {parcelas}x de R$ {valorParcelaPreview}</Text>
                                     ) : null}
                                 </View>
                             )}
                         </View>
                     )}
 
-                    {/* CONTA BANCÁRIA */}
                     <Text style={styles.label}>Conta Bancária</Text>
                     <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalContaVisible(true)}>
                         <View style={[styles.colorDot, { backgroundColor: contaSelecionada ? contaSelecionada.cor : '#4A5980' }]} />
@@ -286,7 +267,6 @@ export default function NovaTransacaoScreen() {
                         <Feather name="chevron-down" size={20} color="#7B8DB0" />
                     </TouchableOpacity>
 
-                    {/* CATEGORIA */}
                     <Text style={styles.label}>Categoria</Text>
                     <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalCategoriaVisible(true)}>
                         <View style={[styles.colorDot, { backgroundColor: categoriaSelecionada ? categoriaSelecionada.cor : '#4A5980' }]} />
@@ -296,61 +276,39 @@ export default function NovaTransacaoScreen() {
                         <Feather name="chevron-down" size={20} color="#7B8DB0" />
                     </TouchableOpacity>
 
-                    {/* DESCRIÇÃO E DATA */}
                     <Text style={styles.label}>Descrição</Text>
                     <View style={styles.inputContainer}>
                         <Feather name="edit-3" size={20} color="#7B8DB0" style={styles.inputIcon} />
                         <TextInput style={styles.inputText} placeholder="Ex: Mercado..." placeholderTextColor="#4A5980" value={descricao} onChangeText={setDescricao} />
                     </View>
 
-                    {/* RENDERIZAÇÃO CONDICIONAL DA DATA */}
                     {natureza === 'variavel' ? (
                         <>
-                            <Text style={styles.label}>
-                                {tipo === 'despesa' ? 'Data da Despesa' : 'Data do Recebimento'}
-                            </Text>
+                            <Text style={styles.label}>{tipo === 'despesa' ? 'Data da Despesa' : 'Data do Recebimento'}</Text>
                             <View style={styles.inputContainer}>
                                 <Feather name="calendar" size={20} color="#7B8DB0" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.inputText}
-                                    placeholder="DD/MM/AAAA"
-                                    placeholderTextColor="#4A5980"
-                                    value={data}
-                                    onChangeText={handleDataChange}
-                                    keyboardType="number-pad"
-                                    maxLength={10}
-                                />
+                                <TextInput style={styles.inputText} placeholder="DD/MM/AAAA" placeholderTextColor="#4A5980" value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={10} />
                             </View>
                         </>
                     ) : (
                         <>
-                            <Text style={styles.label}>
-                                {tipo === 'despesa' ? 'Dia do Vencimento (Fixo)' : 'Dia do Recebimento (Fixo)'}
-                            </Text>
+                            <Text style={styles.label}>{tipo === 'despesa' ? 'Dia do Vencimento (Fixo)' : 'Dia do Recebimento (Fixo)'}</Text>
                             <View style={styles.inputContainer}>
                                 <Feather name="calendar" size={20} color="#7B8DB0" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.inputText}
-                                    placeholder="Ex: 05, 10, 20"
-                                    placeholderTextColor="#4A5980"
-                                    value={data}
-                                    onChangeText={handleDataChange}
-                                    keyboardType="number-pad"
-                                    maxLength={2}
-                                />
+                                <TextInput style={styles.inputText} placeholder="Ex: 05, 10, 20" placeholderTextColor="#4A5980" value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={2} />
                             </View>
                         </>
                     )}
 
                     <TouchableOpacity style={styles.submitButton} onPress={handleSalvar} activeOpacity={0.8}>
-                        <Text style={styles.submitButtonText}>Salvar Lançamento</Text>
-                        <Feather name="check" size={20} color="#FFFFFF" />
+                        <Text style={styles.submitButtonText}>{isEditMode ? 'Atualizar Lançamento' : 'Salvar Lançamento'}</Text>
+                        <Feather name={isEditMode ? "refresh-cw" : "check"} size={20} color="#FFFFFF" />
                     </TouchableOpacity>
 
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* MODAL: SELEÇÃO DE CATEGORIAS */}
+            {/* MODAIS MANTIDOS INTACTOS */}
             <Modal visible={modalCategoriaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -371,7 +329,6 @@ export default function NovaTransacaoScreen() {
                 </View>
             </Modal>
 
-            {/* MODAL: SELEÇÃO DE CONTAS */}
             <Modal visible={modalContaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -382,13 +339,7 @@ export default function NovaTransacaoScreen() {
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity
-                            style={styles.createAccountButton}
-                            onPress={() => {
-                                setModalContaVisible(false);
-                                setTimeout(() => { setModalCriarContaVisible(true); }, 100);
-                            }}
-                        >
+                        <TouchableOpacity style={styles.createAccountButton} onPress={() => { setModalContaVisible(false); setTimeout(() => { setModalCriarContaVisible(true); }, 100); }}>
                             <Feather name="plus-circle" size={20} color="#10B981" />
                             <Text style={styles.createAccountText}>Adicionar nova conta</Text>
                         </TouchableOpacity>
@@ -404,49 +355,21 @@ export default function NovaTransacaoScreen() {
                 </View>
             </Modal>
 
-            {/* SUB-MODAL: CRIAR NOVA CONTA */}
             <Modal visible={modalCriarContaVisible} transparent={true} animationType="fade">
                 <View style={styles.modalOverlayCentered}>
                     <View style={styles.modalCard}>
                         <Text style={styles.modalTitle}>Nova Conta</Text>
-
-                        <TextInput
-                            style={styles.modalInput}
-                            placeholder="Ex: Nubank, Itaú, Santander..."
-                            placeholderTextColor="#4A5980"
-                            value={novaContaNome}
-                            onChangeText={setNovaContaNome}
-                            autoFocus
-                        />
-
-                        {/* SELETOR DE COR DA CONTA */}
+                        <TextInput style={styles.modalInput} placeholder="Ex: Nubank, Itaú, Santander..." placeholderTextColor="#4A5980" value={novaContaNome} onChangeText={setNovaContaNome} autoFocus />
                         <Text style={styles.labelSmall}>Escolha uma cor identificadora:</Text>
                         <View style={styles.paletteContainer}>
                             {CORES_PALETA.map((cor) => (
-                                <TouchableOpacity
-                                    key={cor}
-                                    style={[
-                                        styles.paletteCircle,
-                                        { backgroundColor: cor },
-                                        novaContaCor === cor && styles.paletteCircleActive
-                                    ]}
-                                    onPress={() => setNovaContaCor(cor)}
-                                    activeOpacity={0.7}
-                                />
+                                <TouchableOpacity key={cor} style={[styles.paletteCircle, { backgroundColor: cor }, novaContaCor === cor && styles.paletteCircleActive]} onPress={() => setNovaContaCor(cor)} activeOpacity={0.7} />
                             ))}
                         </View>
-
                         <View style={styles.modalActions}>
-                            <TouchableOpacity
-                                style={styles.modalActionButton}
-                                onPress={() => {
-                                    setModalCriarContaVisible(false);
-                                    setTimeout(() => { setModalContaVisible(true); }, 100);
-                                }}
-                            >
+                            <TouchableOpacity style={styles.modalActionButton} onPress={() => { setModalCriarContaVisible(false); setTimeout(() => { setModalContaVisible(true); }, 100); }}>
                                 <Text style={styles.modalActionTextCancel}>Cancelar</Text>
                             </TouchableOpacity>
-
                             <TouchableOpacity onPress={handleCriarContaRapida} style={styles.modalActionButtonPrimary}>
                                 <Text style={styles.modalActionTextConfirm}>Criar</Text>
                             </TouchableOpacity>
@@ -454,7 +377,6 @@ export default function NovaTransacaoScreen() {
                     </View>
                 </View>
             </Modal>
-
         </InternalBackground>
     );
 }
