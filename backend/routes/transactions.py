@@ -1,6 +1,6 @@
 import uuid
 import calendar
-from datetime import datetime
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity # CORREÇÃO: Adicionado get_jwt_identity
 from database import db
@@ -103,14 +103,19 @@ def get_transactions():
     ano = request.args.get('ano')
 
     # Filtra transações do usuário no mês e ano selecionado
-    query = Transaction.query.filter_by(user_id=user_id)
+    query = Transaction.query.filter_by(user_id=user_id, deleted_at=None)
     
     if mes and ano:
         query = query.filter(
             extract('month', Transaction.data_vencimento) == int(mes),
             extract('year', Transaction.data_vencimento) == int(ano)
         )
-    
+
+    query = query.order_by(
+        Transaction.data_vencimento.desc(), 
+        Transaction.id.desc()
+    )
+
     transacoes = query.all()
     
     return jsonify([{
@@ -118,9 +123,10 @@ def get_transactions():
         "descricao": t.descricao,
         "valor": float(t.valor),
         "tipo": t.tipo,
+        "pago": t.pago, # Retornar o status de pago ajuda no Dashboard
         "data_vencimento": t.data_vencimento.isoformat(),
-        "categoria_nome": t.category.nome, # Certifique-se que o relacionamento existe
-        "conta_nome": t.account.nome,
+        "categoria_nome": t.category.nome if t.category else 'Sem Categoria',
+        "conta_nome": t.account.nome if t.account else 'Sem Conta',
         "total_parcelas": t.total_parcelas,
         "parcela_atual": t.parcela_atual
     } for t in transacoes]), 200
@@ -136,6 +142,9 @@ def get_single_transaction(transaction_id):
     if not transacao:
         return jsonify({"erro": "Transação não encontrada"}), 404
 
+    # Tratamento contra valores Nulos (None) do Banco
+    total_parcelas_seguro = transacao.total_parcelas if transacao.total_parcelas is not None else 1
+
     return jsonify({
         "id": transacao.id,
         "descricao": transacao.descricao,
@@ -146,8 +155,8 @@ def get_single_transaction(transaction_id):
         "account_id": transacao.account_id,
         "category_id": transacao.category_id,
         "pago": transacao.pago,
-        "is_parcelado": transacao.total_parcelas > 1,
-        "total_parcelas": transacao.total_parcelas
+        "is_parcelado": total_parcelas_seguro > 1,
+        "total_parcelas": total_parcelas_seguro
     }), 200
 
 @transactions_bp.route('/<transaction_id>', methods=['PUT'])
@@ -191,13 +200,20 @@ def delete_transaction(transaction_id):
     user_id = get_jwt_identity()
     
     # CORREÇÃO: Garante que a transação pertence ao usuário logado
-    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
+    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id).first()
     
     if not transacao:
         return jsonify({"erro": "Transação não encontrada ou acesso negado"}), 404
 
-    # CORREÇÃO: Soft Delete (melhor prática para histórico financeiro)
-    transacao.deleted_at = datetime.now()
+    if transacao.grupo_parcelamento_id:
+        Transaction.query.filter_by(
+            grupo_parcelamento_id=transacao.grupo_parcelamento_id, 
+            user_id=user_id
+        ).update({"deleted_at": datetime.now(timezone.utc)})
+    else:
+        # Se for um lançamento 'unico', deleta apenas ele
+        transacao.deleted_at = datetime.now(timezone.utc)
+
     db.session.commit()
 
-    return jsonify({"mensagem": "Transação excluída com sucesso!"}), 200
+    return jsonify({"mensagem": "Transação(ões) excluída(s) com sucesso"}), 200

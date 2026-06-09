@@ -14,21 +14,22 @@ def get_resumo():
     mes = request.args.get('mes')
     ano = request.args.get('ano')
 
-    # Base da query
-    base_query = Transaction.query.filter_by(user_id=user_id)
+    # Filtra apenas transações não deletadas
+    query = Transaction.query.filter_by(user_id=user_id, deleted_at=None)
     
     if mes and ano:
-        base_query = base_query.filter(
+        query = query.filter(
             extract('month', Transaction.data_vencimento) == int(mes),
             extract('year', Transaction.data_vencimento) == int(ano)
         )
-
-    # Soma Entradas e Saídas
-    receitas = base_query.filter_by(tipo='receita').with_entities(func.sum(Transaction.valor)).scalar() or 0
-    despesas = base_query.filter_by(tipo='despesa').with_entities(func.sum(Transaction.valor)).scalar() or 0
-
+    
+    transacoes = query.all()
+    
+    receitas = sum(float(t.valor) for t in transacoes if t.tipo == 'receita')
+    despesas = sum(float(t.valor) for t in transacoes if t.tipo == 'despesa')
+    
     return jsonify({
-        "receitas": float(receitas),
-        "despesas": float(despesas),
-        "saldo_livre": float(receitas - despesas)
+        "receitas": receitas,
+        "despesas": despesas,
+        "saldo": receitas - despesas
     }), 200

@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Modal } fr
 import { Feather } from '@expo/vector-icons';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
-import { InternalBackground } from '../../components/InternalBackground'; 
-import api from '../../services/api'; 
+import { InternalBackground } from '../../components/InternalBackground';
+import api from '../../services/api';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -38,11 +38,11 @@ export default function DashboardScreen() {
       const resumoResponse = await api.get(`/dashboard/resumo/?mes=${mes}&ano=${ano}`);
       setReceitas(resumoResponse.data.receitas || 0);
       setDespesas(resumoResponse.data.despesas || 0);
-      setSaldoLivre(resumoResponse.data.saldo_livre || 0);
+      setSaldoLivre(resumoResponse.data.saldo || 0);
 
       const transacoesResponse = await api.get(`/transactions/?mes=${mes}&ano=${ano}`);
       setTransacoesRecentes(transacoesResponse.data || []);
-      
+
     } catch (error) {
       console.error("Erro ao buscar dados do dashboard:", error);
     }
@@ -88,11 +88,8 @@ export default function DashboardScreen() {
   const handleEditar = (transacao: any) => {
     setModalDetalhesVisible(false);
     // Navega para a tela de edição passando o ID da transação
-    router.push({
-      pathname: '/nova-transacao',
-      params: { id: transacao.id }
-    });
-  };
+    router.push({ pathname: '/nova-transacao', params: { id: transacao.id } });
+  }
 
   const handleExcluir = async (id: string) => {
     Alert.alert(
@@ -100,9 +97,9 @@ export default function DashboardScreen() {
       "Tem certeza que deseja apagar essa transação?",
       [
         { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Excluir", 
-          style: "destructive", 
+        {
+          text: "Excluir",
+          style: "destructive",
           onPress: async () => {
             try {
               await api.delete(`/transactions/${id}`);
@@ -112,7 +109,7 @@ export default function DashboardScreen() {
               console.error("Erro ao excluir:", error);
               Alert.alert("Erro", "Não foi possível excluir o lançamento.");
             }
-          } 
+          }
         }
       ]
     );
@@ -121,7 +118,7 @@ export default function DashboardScreen() {
   return (
     <InternalBackground>
       <ScrollView contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
-        
+
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -143,7 +140,7 @@ export default function DashboardScreen() {
           <TouchableOpacity style={styles.monthBtn} activeOpacity={0.7} onPress={() => mudarMes(-1)}>
             <Feather name="chevron-left" size={24} color="#7B8DB0" />
           </TouchableOpacity>
-          
+
           <TouchableOpacity activeOpacity={1} onPress={handleResetMes}>
             <Text style={styles.monthText}>{mesAtualFormatado}</Text>
           </TouchableOpacity>
@@ -190,29 +187,38 @@ export default function DashboardScreen() {
         {/* LISTA DINÂMICA */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Lançamentos do Mês</Text>
-          
+
           {transacoesRecentes.length === 0 ? (
             <Text style={styles.emptyText}>Nenhuma transação neste mês.</Text>
           ) : (
             transacoesRecentes.map((item) => (
-              <TouchableOpacity 
-                key={item.id} 
-                style={styles.transactionItem} 
+              <TouchableOpacity
+                key={item.id}
+                style={styles.transactionItem}
                 activeOpacity={0.7}
                 onPress={() => abrirDetalhes(item)}
               >
-                <View style={styles.transactionLeft}>
+                {/* Conteúdo à Esquerda */}
+                <View style={[styles.transactionLeft, { flex: 1, marginRight: 10 }]}>
                   <View style={[styles.transactionIcon, { backgroundColor: item.tipo === 'despesa' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)' }]}>
                     <Feather name={item.tipo === 'despesa' ? "shopping-bag" : "dollar-sign"} size={16} color={item.tipo === 'despesa' ? "#EF4444" : "#10B981"} />
                   </View>
-                  <View>
-                    <Text style={styles.transactionName}>{item.descricao}</Text>
+                  <View style={{ flex: 1 }}> {/* flex: 1 aqui para empurrar o valor para a direita */}
+                    <Text style={styles.transactionName} numberOfLines={1}>{item.descricao}</Text>
                     <Text style={styles.transactionCategory}>
                       {item.categoria_nome} {item.total_parcelas > 1 ? `(${item.parcela_atual}/${item.total_parcelas})` : ''}
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.transactionValue, { color: item.tipo === 'despesa' ? '#FFFFFF' : '#10B981' }]}>
+
+                {/* Conteúdo à Direita (Valor) */}
+                <Text
+                  style={[
+                    styles.transactionValue,
+                    { color: item.tipo === 'despesa' ? '#FFFFFF' : '#10B981' }
+                  ]}
+                  numberOfLines={1}
+                >
                   {item.tipo === 'despesa' ? '- ' : '+ '}{formatarMoeda(item.valor)}
                 </Text>
               </TouchableOpacity>
@@ -314,11 +320,11 @@ const styles = StyleSheet.create({
   sectionTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 16 },
   emptyText: { color: '#4A5980', fontSize: 14, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
   transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0B1120', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', marginBottom: 12 },
-  transactionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  transactionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, },
   transactionIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   transactionName: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginBottom: 2 },
   transactionCategory: { color: '#4A5980', fontSize: 12 },
-  transactionValue: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold' },
+  transactionValue: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', minWidth: 80 },
   fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
 
   // Estilos do Modal de Detalhes
@@ -332,7 +338,7 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1A2540' },
   detailLabel: { color: '#7B8DB0', fontSize: 15 },
   detailValue: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
-  
+
   // Layout dos Botões lado a lado
   modalActionsRow: { flexDirection: 'row', marginTop: 32, gap: 12, width: '100%' },
   editButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', justifyContent: 'center' },
