@@ -14,7 +14,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import AnimatedBackground from '../../components/AnimatedBackground';
+import AnimatedBackground from '../components/AnimatedBackground';
 
 
 // --- TELA DE RECUPERAÇÃO ---

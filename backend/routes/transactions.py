@@ -4,8 +4,9 @@ from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity # CORREÇÃO: Adicionado get_jwt_identity
 from database import db
-from models import Transaction, Account # CORREÇÃO: Adicionado Account
-from sqlalchemy import extract
+from models import Transaction, Account, Category 
+from sqlalchemy import extract, func
+import re
 
 transactions_bp = Blueprint('transactions', __name__)
 
@@ -126,6 +127,8 @@ def get_transactions():
         "pago": t.pago, # Retornar o status de pago ajuda no Dashboard
         "data_vencimento": t.data_vencimento.isoformat(),
         "categoria_nome": t.category.nome if t.category else 'Sem Categoria',
+        "categoria_icone": t.category.icone,
+        "categoria_cor": t.category.cor,
         "conta_nome": t.account.nome if t.account else 'Sem Conta',
         "total_parcelas": t.total_parcelas,
         "parcela_atual": t.parcela_atual
@@ -163,36 +166,51 @@ def get_single_transaction(transaction_id):
 @jwt_required()
 def update_transaction(transaction_id):
     user_id = get_jwt_identity()
-    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id, deleted_at=None).first()
+    data = request.json
     
+    # 1. Encontra a transação original
+    transacao = Transaction.query.filter_by(id=transaction_id, user_id=user_id).first()
     if not transacao:
-        return jsonify({"erro": "Transação não encontrada ou acesso negado"}), 404
+        return jsonify({"erro": "Transação não encontrada"}), 404
 
-    data = request.get_json()
+    # 2. Limpeza Inteligente da Descrição
+    # Remove qualquer coisa como " (1/10)" do final da string que o front-end mandar
+    nova_descricao = data.get('descricao', transacao.descricao)
+    nova_descricao_limpa = re.sub(r'\s*\(\d+/\d+\)$', '', nova_descricao).strip()
 
-    # Atualiza todos os campos possíveis
-    if 'descricao' in data: transacao.descricao = data['descricao']
-    if 'valor' in data: transacao.valor = data['valor']
-    if 'pago' in data: transacao.pago = data['pago']
-    if 'tipo' in data: transacao.tipo = data['tipo']
-    if 'natureza' in data: transacao.natureza = data['natureza']
-    if 'category_id' in data: transacao.category_id = data['category_id']
-    if 'account_id' in data: transacao.account_id = data['account_id']
-    
-    # Formatação de Data no PUT
-    if 'data' in data:
-        try:
-            if transacao.natureza == 'fixa':
-                dia = min(int(data['data']), 28) 
-                hoje = datetime.now()
-                transacao.data_vencimento = datetime(hoje.year, hoje.month, dia).date()
-            else:
-                transacao.data_vencimento = datetime.strptime(data['data'], '%d/%m/%Y').date()
-        except ValueError:
-            pass # Ignora se a data vier mal formatada
+    # 3. Lógica de Cascata (Para transações Parceladas)
+    if transacao.grupo_parcelamento_id:
+        transacoes_grupo = Transaction.query.filter_by(
+            grupo_parcelamento_id=transacao.grupo_parcelamento_id, 
+            user_id=user_id
+        ).all()
+        
+        for t in transacoes_grupo:
+            t.descricao = nova_descricao_limpa
+            t.valor = data.get('valor', t.valor)
+            t.category_id = data.get('category_id', t.category_id)
+            t.account_id = data.get('account_id', t.account_id)
+            # NOTA: Não mexemos na data_vencimento aqui para não jogar 
+            # todas as parcelas pro mesmo mês. O vencimento segue o original de cada uma.
+            
+    else:
+        # 4. Lógica Simples (Para transações Únicas)
+        transacao.descricao = nova_descricao_limpa
+        transacao.valor = data.get('valor', transacao.valor)
+        transacao.category_id = data.get('category_id', transacao.category_id)
+        transacao.account_id = data.get('account_id', transacao.account_id)
+        
+        # Só mudamos a data se for transação única
+        if 'data_vencimento' in data:
+            transacao.data_vencimento = data['data_vencimento']
+
+    # Se mandou o status de 'pago'
+    if 'pago' in data:
+        transacao.pago = data['pago']
 
     db.session.commit()
-    return jsonify({"mensagem": "Transação atualizada com sucesso!"}), 200
+    
+    return jsonify({"mensagem": "Transação atualizada com sucesso"}), 200
 
 @transactions_bp.route('/<transaction_id>', methods=['DELETE'])
 @jwt_required()
@@ -217,3 +235,55 @@ def delete_transaction(transaction_id):
     db.session.commit()
 
     return jsonify({"mensagem": "Transação(ões) excluída(s) com sucesso"}), 200
+
+@transactions_bp.route('/relatorios/categorias', methods=['GET'])
+@jwt_required()
+def relatorio_gastos_por_categoria():
+    user_id = get_jwt_identity()
+    mes = request.args.get('mes')
+    ano = request.args.get('ano')
+    tipo = request.args.get('tipo', 'despesa') # Por padrão, foca em despesas
+
+    # Monta a consulta juntando Transação com Categoria
+    query = db.session.query(
+        Category.nome.label('categoria_nome'),
+        func.sum(Transaction.valor).label('total_gasto')
+    ).join(
+        Category, Transaction.category_id == Category.id
+    ).filter(
+        Transaction.user_id == user_id,
+        Transaction.deleted_at == None,
+        Transaction.tipo == tipo
+    )
+
+    # Filtra por mês e ano, se foram enviados
+    if mes and ano:
+        query = query.filter(
+            extract('month', Transaction.data_vencimento) == int(mes),
+            extract('year', Transaction.data_vencimento) == int(ano)
+        )
+
+    # Agrupa os resultados pelo nome da categoria
+    resultados = query.group_by(Category.nome).all()
+
+    # Formata a resposta e calcula as porcentagens
+    dados = []
+    total_geral = sum([r.total_gasto for r in resultados]) if resultados else 0
+
+    for r in resultados:
+        total_categoria = float(r.total_gasto)
+        percentual = round((total_categoria / float(total_geral)) * 100, 1) if total_geral > 0 else 0
+        
+        dados.append({
+            "categoria": r.categoria_nome,
+            "total": total_categoria,
+            "percentual": percentual
+        })
+
+    # Ordena para que a categoria com maior gasto apareça primeiro
+    dados = sorted(dados, key=lambda x: x['total'], reverse=True)
+
+    return jsonify({
+        "total_geral": float(total_geral),
+        "dados": dados
+    }), 200

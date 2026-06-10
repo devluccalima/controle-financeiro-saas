@@ -25,7 +25,7 @@ export default function NovaTransacaoScreen() {
         return `${dia}/${mes}/${ano}`;
     };
 
-    const [isLoading, setIsLoading] = useState(isEditMode); // Se for edição, começa carregando
+    const [isLoading, setIsLoading] = useState(isEditMode); 
     const [tipo, setTipo] = useState<'despesa' | 'receita'>('despesa');
     const [natureza, setNatureza] = useState<'variavel' | 'fixa'>('variavel');
     const [valor, setValor] = useState('');
@@ -36,7 +36,8 @@ export default function NovaTransacaoScreen() {
     const [contas, setContas] = useState<any[]>([]);
     const categoriasFiltradas = categorias.filter(cat => cat.tipo === tipo);
 
-    const [categoriaSelecionada, setCategoriaSelecionada] = useState<{ id: string, nome: string, cor: string } | null>(null);
+    // Adicionado 'icone' ao tipo da categoria
+    const [categoriaSelecionada, setCategoriaSelecionada] = useState<{ id: string, nome: string, cor: string, icone?: string } | null>(null);
     const [modalCategoriaVisible, setModalCategoriaVisible] = useState(false);
     
     const [contaSelecionada, setContaSelecionada] = useState<{ id: string, nome: string, cor: string } | null>(null);
@@ -53,14 +54,12 @@ export default function NovaTransacaoScreen() {
     const qtdParcelas = parseInt(parcelas) || 1;
     const valorParcelaPreview = (valorNumericoTemp / qtdParcelas).toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
 
-    // RODA AO ABRIR A TELA
     useEffect(() => {
         carregarDadosDoBanco();
     }, []);
 
     const carregarDadosDoBanco = async () => {
         try {
-            // 1. Carrega as listas essenciais primeiro
             const contasResponse = await api.get('/accounts/');
             const contasData = contasResponse.data;
             setContas(contasData);
@@ -69,7 +68,6 @@ export default function NovaTransacaoScreen() {
             const categoriasData = categoriasResponse.data;
             setCategorias(categoriasData);
 
-            // 2. Se for modo EDIÇÃO, busca a transação e preenche os campos
             if (isEditMode) {
                 const transacaoResponse = await api.get(`/transactions/${id}`);
                 const t = transacaoResponse.data;
@@ -78,25 +76,21 @@ export default function NovaTransacaoScreen() {
                 setNatureza(t.natureza);
                 setDescricao(t.descricao);
                 
-                // Formata o valor de 150.5 para "150,50"
                 setValor(parseFloat(t.valor).toFixed(2).replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.'));
                 
-                // Formata a data de YYYY-MM-DD para DD/MM/YYYY
                 if (t.natureza === 'fixa') {
-                    setData(t.data_vencimento.split('-')[2]); // Pega só o dia
+                    setData(t.data_vencimento.split('-')[2]); 
                 } else {
                     const [ano, mes, dia] = t.data_vencimento.split('-');
                     setData(`${dia}/${mes}/${ano}`);
                 }
 
-                // Acha a conta e a categoria na lista e seleciona
                 const contaEncontrada = contasData.find((c: any) => c.id === t.account_id);
                 if (contaEncontrada) setContaSelecionada(contaEncontrada);
 
                 const categoriaEncontrada = categoriasData.find((c: any) => c.id === t.category_id);
                 if (categoriaEncontrada) setCategoriaSelecionada(categoriaEncontrada);
 
-                // Em edição, geralmente não permitimos alterar o parcelamento total para não quebrar outras parcelas
                 setIsParcelado(t.is_parcelado);
                 if (t.is_parcelado) {
                     setParcelas(String(t.total_parcelas));
@@ -166,7 +160,6 @@ export default function NovaTransacaoScreen() {
                 total_parcelas: isParcelado ? parseInt(parcelas) : 1
             };
 
-            // SE TIVER ID (EDIÇÃO), FAZ PUT. SE NÃO, FAZ POST.
             if (isEditMode) {
                 await api.put(`/transactions/${id}`, payload);
             } else {
@@ -232,7 +225,6 @@ export default function NovaTransacaoScreen() {
                         </TouchableOpacity>
                     </View>
 
-                    {/* BLOQUEIA A EDIÇÃO DE PARCELAMENTO SE FOR MODO EDIÇÃO PARA EVITAR BUGS COMPLEXOS */}
                     {tipo === 'despesa' && natureza === 'variavel' && !isEditMode && (
                         <View style={styles.installmentContainer}>
                             <View style={[styles.installmentToggleRow, isParcelado && { marginBottom: 16 }]}>
@@ -260,7 +252,11 @@ export default function NovaTransacaoScreen() {
 
                     <Text style={styles.label}>Conta Bancária</Text>
                     <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalContaVisible(true)}>
-                        <View style={[styles.colorDot, { backgroundColor: contaSelecionada ? contaSelecionada.cor : '#4A5980' }]} />
+                        {contaSelecionada ? (
+                            <Feather name="credit-card" size={20} color={contaSelecionada.cor} style={{ marginRight: 12 }} />
+                        ) : (
+                            <View style={[styles.colorDot, { backgroundColor: '#4A5980' }]} />
+                        )}
                         <Text style={[styles.inputText, !contaSelecionada && { color: '#4A5980' }]}>
                             {contaSelecionada ? contaSelecionada.nome : 'Selecione a conta...'}
                         </Text>
@@ -269,7 +265,11 @@ export default function NovaTransacaoScreen() {
 
                     <Text style={styles.label}>Categoria</Text>
                     <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalCategoriaVisible(true)}>
-                        <View style={[styles.colorDot, { backgroundColor: categoriaSelecionada ? categoriaSelecionada.cor : '#4A5980' }]} />
+                        {categoriaSelecionada ? (
+                            <Feather name={categoriaSelecionada.icone as any || 'tag'} size={20} color={categoriaSelecionada.cor} style={{ marginRight: 12 }} />
+                        ) : (
+                            <View style={[styles.colorDot, { backgroundColor: '#4A5980' }]} />
+                        )}
                         <Text style={[styles.inputText, !categoriaSelecionada && { color: '#4A5980' }]}>
                             {categoriaSelecionada ? categoriaSelecionada.nome : 'Selecione a categoria...'}
                         </Text>
@@ -308,7 +308,7 @@ export default function NovaTransacaoScreen() {
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* MODAIS MANTIDOS INTACTOS */}
+            {/* MODAL DE CATEGORIAS COM ÍCONES */}
             <Modal visible={modalCategoriaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -321,7 +321,9 @@ export default function NovaTransacaoScreen() {
                         <FlatList data={categoriasFiltradas} keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
                                 <TouchableOpacity style={styles.listItem} onPress={() => { setCategoriaSelecionada(item); setModalCategoriaVisible(false); }}>
-                                    <View style={[styles.colorDot, { backgroundColor: item.cor }]} />
+                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || '#10B981'}20` }]}>
+                                        <Feather name={item.icone || 'tag'} size={16} color={item.cor || '#10B981'} />
+                                    </View>
                                     <Text style={styles.listText}>{item.nome}</Text>
                                 </TouchableOpacity>
                             )} />
@@ -329,6 +331,7 @@ export default function NovaTransacaoScreen() {
                 </View>
             </Modal>
 
+            {/* MODAL DE CONTAS COM ÍCONE FIXO DE CARTÃO */}
             <Modal visible={modalContaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
@@ -347,7 +350,9 @@ export default function NovaTransacaoScreen() {
                         <FlatList data={contas} keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
                                 <TouchableOpacity style={styles.listItem} onPress={() => { setContaSelecionada(item); setModalContaVisible(false); }}>
-                                    <View style={[styles.colorDot, { backgroundColor: item.cor }]} />
+                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || '#3B82F6'}20` }]}>
+                                        <Feather name="credit-card" size={16} color={item.cor || '#3B82F6'} />
+                                    </View>
                                     <Text style={styles.listText}>{item.nome}</Text>
                                 </TouchableOpacity>
                             )} />
@@ -355,6 +360,7 @@ export default function NovaTransacaoScreen() {
                 </View>
             </Modal>
 
+            {/* MODAL CRIAR CONTA (MANTIDO IGUAL) */}
             <Modal visible={modalCriarContaVisible} transparent={true} animationType="fade">
                 <View style={styles.modalOverlayCentered}>
                     <View style={styles.modalCard}>
@@ -403,7 +409,10 @@ const styles = StyleSheet.create({
     inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0B1120', borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', marginBottom: 24, paddingHorizontal: 16, minHeight: 56 },
     inputIcon: { marginRight: 12 },
     inputText: { flex: 1, color: '#FFFFFF', fontSize: 16, paddingVertical: 16 },
+    
     colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
+    iconBoxSmall: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 }, // NOVO: Fundo colorido do ícone nas listas
+
     submitButton: { flexDirection: 'row', backgroundColor: '#10B981', borderRadius: 16, paddingVertical: 18, justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 12 },
     submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
 
@@ -427,12 +436,10 @@ const styles = StyleSheet.create({
     modalActionTextCancel: { color: '#7B8DB0', fontSize: 16, fontWeight: 'bold' },
     modalActionTextConfirm: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
 
-    // Estilos do Seletor de Cores (Palette)
     paletteContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
     paletteCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'transparent' },
     paletteCircleActive: { borderColor: '#FFFFFF', transform: [{ scale: 1.1 }] },
 
-    // Estilos de Parcelamento
     installmentContainer: { marginBottom: 24, paddingHorizontal: 4 },
     installmentToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     installmentLabel: { color: '#7B8DB0', fontSize: 14, fontWeight: '600' },

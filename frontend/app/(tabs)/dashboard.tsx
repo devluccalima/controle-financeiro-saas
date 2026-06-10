@@ -198,26 +198,41 @@ export default function DashboardScreen() {
                 activeOpacity={0.7}
                 onPress={() => abrirDetalhes(item)}
               >
-                {/* Conteúdo à Esquerda */}
-                <View style={[styles.transactionLeft, { flex: 1, marginRight: 10 }]}>
-                  <View style={[styles.transactionIcon, { backgroundColor: item.tipo === 'despesa' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)' }]}>
-                    <Feather name={item.tipo === 'despesa' ? "shopping-bag" : "dollar-sign"} size={16} color={item.tipo === 'despesa' ? "#EF4444" : "#10B981"} />
+                {/* CONTEÚDO DA ESQUERDA (Ícone + Textos) */}
+                <View style={[styles.transactionLeft, { flex: 1, marginRight: 12 }]}>
+                  <View style={[
+                    styles.transactionIcon,
+                    { backgroundColor: item.categoria_cor ? `${item.categoria_cor}20` : (item.tipo === 'despesa' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)') }
+                  ]}>
+                    <Feather
+                      name={item.categoria_icone || (item.tipo === 'despesa' ? "shopping-bag" : "dollar-sign")}
+                      size={16}
+                      color={item.categoria_cor || (item.tipo === 'despesa' ? "#EF4444" : "#10B981")}
+                    />
                   </View>
-                  <View style={{ flex: 1 }}> {/* flex: 1 aqui para empurrar o valor para a direita */}
-                    <Text style={styles.transactionName} numberOfLines={1}>{item.descricao}</Text>
+
+                  {/* A mágica acontece aqui: flex: 1 diz para este bloco respeitar o limite da tela */}
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={styles.transactionName}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {item.descricao}
+                    </Text>
                     <Text style={styles.transactionCategory}>
-                      {item.categoria_nome} {item.total_parcelas > 1 ? `(${item.parcela_atual}/${item.total_parcelas})` : ''}
+                      {item.categoria_nome} | {item.total_parcelas > 1 ? `(${item.parcela_atual}/${item.total_parcelas})` : ''}
                     </Text>
                   </View>
                 </View>
 
-                {/* Conteúdo à Direita (Valor) */}
+                {/* CONTEÚDO DA DIREITA (Valor Financeiro Blindado) */}
+                {/* flexShrink: 0 garante que o React Native NUNCA amasse ou corte esse número */}
                 <Text
                   style={[
                     styles.transactionValue,
-                    { color: item.tipo === 'despesa' ? '#FFFFFF' : '#10B981' }
+                    { color: item.tipo === 'despesa' ? '#FFFFFF' : '#10B981', flexShrink: 0 }
                   ]}
-                  numberOfLines={1}
                 >
                   {item.tipo === 'despesa' ? '- ' : '+ '}{formatarMoeda(item.valor)}
                 </Text>

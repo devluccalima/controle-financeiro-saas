@@ -15,8 +15,8 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Alert } from 'react-native';
 
-import AnimatedBackground from '../../components/AnimatedBackground';
-import api from '../../services/api';
+import AnimatedBackground from '../components/AnimatedBackground';
+import api from '../services/api';
 
 // --- TELA DE REGISTRO ---
 export default function RegisterScreen() {

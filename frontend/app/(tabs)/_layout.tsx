@@ -1,35 +1,100 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import { Feather } from '@expo/vector-icons';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+function TabButton({ children, onPress, accessibilityState }: BottomTabBarButtonProps) {
+  const focused = accessibilityState?.selected;
+  const insets = useSafeAreaInsets();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={[
+        styles.tabButton,
+        { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 },
+      ]}
+    >
+      {children}
+      <View style={[styles.dot, focused && styles.dotActive]} />
+    </TouchableOpacity>
+  );
+}
+
+export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
-      }}>
+        tabBarActiveTintColor: '#10B981',
+        tabBarInactiveTintColor: '#3D4A5C',
+        tabBarStyle: [styles.tabBar, { height: 64 + insets.bottom }],
+        tabBarLabelStyle: styles.label,
+        tabBarButton: (props) => <TabButton {...props} />,
+      }}
+    >
       <Tabs.Screen
-        name="index"
+        name="dashboard"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: 'Início',
+          tabBarIcon: ({ color }) => (
+            <Feather name="home" size={20} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="relatorios"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: 'Relatórios',
+          tabBarIcon: ({ color }) => (
+            <Feather name="pie-chart" size={20} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="ajustes"
+        options={{
+          title: 'Ajustes',
+          tabBarIcon: ({ color }) => (
+            <Feather name="settings" size={20} color={color} />
+          ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    backgroundColor: '#050A14',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(16, 185, 129, 0.12)',
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 10,
+    gap: 3,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'transparent',
+    marginTop: 2,
+  },
+  dotActive: {
+    backgroundColor: '#10B981',
+  },
+});

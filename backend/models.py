@@ -34,6 +34,7 @@ class Category(db.Model):
     nome = db.Column(db.String(50), nullable=False)
     tipo = db.Column(db.String(20), nullable=False) # receita, despesa
     cor = db.Column(db.String(7), nullable=True) # Ex: #FF5733
+    icone = db.Column(db.String(50), default='tag')
     
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     deleted_at = db.Column(db.DateTime, nullable=True)
