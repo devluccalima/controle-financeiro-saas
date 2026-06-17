@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { InternalBackground } from '../components/InternalBackground';
 
 import api from '../services/api';
+import { useTheme } from '../context/ThemeContext'; // <-- Importando o motor de temas
 
 const CORES_PALETA = [
     '#8A05BE', '#FF6200', '#EF4444', '#10B981', '#0e75ca', '#FBBF24',
@@ -12,8 +13,8 @@ const CORES_PALETA = [
 
 export default function NovaTransacaoScreen() {
     const router = useRouter();
+    const { colors, theme } = useTheme(); // <-- Capturando o tema atual
     
-    // CAPTURA O ID DA ROTA (Se existir, estamos no modo EDIÇÃO)
     const { id } = useLocalSearchParams();
     const isEditMode = !!id;
 
@@ -36,7 +37,6 @@ export default function NovaTransacaoScreen() {
     const [contas, setContas] = useState<any[]>([]);
     const categoriasFiltradas = categorias.filter(cat => cat.tipo === tipo);
 
-    // Adicionado 'icone' ao tipo da categoria
     const [categoriaSelecionada, setCategoriaSelecionada] = useState<{ id: string, nome: string, cor: string, icone?: string } | null>(null);
     const [modalCategoriaVisible, setModalCategoriaVisible] = useState(false);
     
@@ -178,7 +178,7 @@ export default function NovaTransacaoScreen() {
         return (
             <InternalBackground>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color="#10B981" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             </InternalBackground>
         );
@@ -188,196 +188,276 @@ export default function NovaTransacaoScreen() {
         <InternalBackground>
             <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Feather name="arrow-left" size={24} color="#7B8DB0" />
+                    <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Feather name="arrow-left" size={24} color={colors.textMuted} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{isEditMode ? 'Editar Lançamento' : 'Novo Lançamento'}</Text>
+                    <Text style={[styles.headerTitle, { color: colors.text }]}>{isEditMode ? 'Editar Lançamento' : 'Novo Lançamento'}</Text>
                     <View style={{ width: 40 }} />
                 </View>
 
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollPadding}>
 
-                    <View style={styles.typeSelector}>
-                        <TouchableOpacity style={[styles.typeButton, tipo === 'despesa' && styles.typeButtonDespesaActive]} onPress={() => { setTipo('despesa'); setCategoriaSelecionada(null); }}>
-                            <Feather name="arrow-down-circle" size={20} color={tipo === 'despesa' ? '#EF4444' : '#7B8DB0'} />
-                            <Text style={[styles.typeText, tipo === 'despesa' && { color: '#EF4444' }]}>Despesa</Text>
+                    {/* SELETOR DE TIPO (DESPESA/RECEITA) */}
+                    <View style={[styles.typeSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <TouchableOpacity 
+                            style={[styles.typeButton, tipo === 'despesa' && { backgroundColor: `${colors.danger}1A` }]} 
+                            onPress={() => { setTipo('despesa'); setCategoriaSelecionada(null); }}
+                        >
+                            <Feather name="arrow-down-circle" size={20} color={tipo === 'despesa' ? colors.danger : colors.textMuted} />
+                            <Text style={[styles.typeText, { color: tipo === 'despesa' ? colors.danger : colors.textMuted }]}>Despesa</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.typeButton, tipo === 'receita' && styles.typeButtonReceitaActive]} onPress={() => { setTipo('receita'); setCategoriaSelecionada(null); }}>
-                            <Feather name="arrow-up-circle" size={20} color={tipo === 'receita' ? '#10B981' : '#7B8DB0'} />
-                            <Text style={[styles.typeText, tipo === 'receita' && { color: '#10B981' }]}>Receita</Text>
+                        <TouchableOpacity 
+                            style={[styles.typeButton, tipo === 'receita' && { backgroundColor: `${colors.primary}1A` }]} 
+                            onPress={() => { setTipo('receita'); setCategoriaSelecionada(null); }}
+                        >
+                            <Feather name="arrow-up-circle" size={20} color={tipo === 'receita' ? colors.primary : colors.textMuted} />
+                            <Text style={[styles.typeText, { color: tipo === 'receita' ? colors.primary : colors.textMuted }]}>Receita</Text>
                         </TouchableOpacity>
                     </View>
 
+                    {/* CAMPO DE VALOR */}
                     <View style={styles.amountContainer}>
-                        <Text style={styles.currencySymbol}>R$</Text>
-                        <TextInput style={[styles.amountInput, { color: tipo === 'despesa' ? '#EF4444' : '#10B981' }]} value={valor} onChangeText={handleValorChange} keyboardType="number-pad" placeholder="0,00" placeholderTextColor="#4A5980" maxLength={15} />
+                        <Text style={[styles.currencySymbol, { color: colors.textMuted }]}>R$</Text>
+                        <TextInput 
+                            style={[styles.amountInput, { color: tipo === 'despesa' ? colors.danger : colors.primary }]} 
+                            value={valor} 
+                            onChangeText={handleValorChange} 
+                            keyboardType="number-pad" 
+                            placeholder="0,00" 
+                            placeholderTextColor={colors.textDark} 
+                            maxLength={15} 
+                        />
                     </View>
 
-                    <Text style={styles.label}>Natureza da Transação</Text>
+                    {/* NATUREZA DA TRANSAÇÃO */}
+                    <Text style={[styles.label, { color: colors.textMuted }]}>Natureza da Transação</Text>
                     <View style={styles.natureSelector}>
-                        <TouchableOpacity style={[styles.natureButton, natureza === 'variavel' && styles.natureButtonActive]} onPress={() => { setNatureza('variavel'); setData(getDataAtual()); }}>
-                            <Feather name="activity" size={16} color={natureza === 'variavel' ? '#FFFFFF' : '#7B8DB0'} />
-                            <Text style={[styles.natureText, natureza === 'variavel' && { color: '#FFFFFF' }]}>Variável</Text>
+                        <TouchableOpacity 
+                            style={[
+                                styles.natureButton, 
+                                { backgroundColor: colors.card, borderColor: colors.border },
+                                natureza === 'variavel' && { backgroundColor: colors.inputBg, borderColor: colors.primary }
+                            ]} 
+                            onPress={() => { setNatureza('variavel'); setData(getDataAtual()); }}
+                        >
+                            <Feather name="activity" size={16} color={natureza === 'variavel' ? colors.primary : colors.textMuted} />
+                            <Text style={[styles.natureText, { color: natureza === 'variavel' ? colors.text : colors.textMuted }]}>Variável</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={[styles.natureButton, natureza === 'fixa' && styles.natureButtonActive]} onPress={() => { setNatureza('fixa'); setData(String(new Date().getDate()).padStart(2, '0')); setIsParcelado(false); }}>
-                            <Feather name="anchor" size={16} color={natureza === 'fixa' ? '#FFFFFF' : '#7B8DB0'} />
-                            <Text style={[styles.natureText, natureza === 'fixa' && { color: '#FFFFFF' }]}>Fixa</Text>
+                        <TouchableOpacity 
+                            style={[
+                                styles.natureButton, 
+                                { backgroundColor: colors.card, borderColor: colors.border },
+                                natureza === 'fixa' && { backgroundColor: colors.inputBg, borderColor: colors.primary }
+                            ]} 
+                            onPress={() => { setNatureza('fixa'); setData(String(new Date().getDate()).padStart(2, '0')); setIsParcelado(false); }}
+                        >
+                            <Feather name="anchor" size={16} color={natureza === 'fixa' ? colors.primary : colors.textMuted} />
+                            <Text style={[styles.natureText, { color: natureza === 'fixa' ? colors.text : colors.textMuted }]}>Fixa</Text>
                         </TouchableOpacity>
                     </View>
 
+                    {/* PARCELAMENTO */}
                     {tipo === 'despesa' && natureza === 'variavel' && !isEditMode && (
                         <View style={styles.installmentContainer}>
                             <View style={[styles.installmentToggleRow, isParcelado && { marginBottom: 16 }]}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                    <Feather name="layers" size={18} color="#7B8DB0" />
-                                    <Text style={styles.installmentLabel}>Compra Parcelada?</Text>
+                                    <Feather name="layers" size={18} color={colors.textMuted} />
+                                    <Text style={[styles.installmentLabel, { color: colors.textMuted }]}>Compra Parcelada?</Text>
                                 </View>
-                                <TouchableOpacity style={[styles.toggleTrack, isParcelado && styles.toggleTrackActive]} onPress={() => setIsParcelado(!isParcelado)} activeOpacity={0.8}>
-                                    <View style={[styles.toggleThumb, isParcelado && styles.toggleThumbActive]} />
+                                <TouchableOpacity 
+                                    style={[styles.toggleTrack, { backgroundColor: isParcelado ? colors.primary : colors.inputBg }]} 
+                                    onPress={() => setIsParcelado(!isParcelado)} 
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[
+                                        styles.toggleThumb, 
+                                        { backgroundColor: isParcelado ? '#FFFFFF' : colors.textMuted },
+                                        isParcelado && styles.toggleThumbActive
+                                    ]} />
                                 </TouchableOpacity>
                             </View>
 
                             {isParcelado && (
                                 <View>
-                                    <View style={styles.inputContainer}>
-                                        <TextInput style={[styles.inputText, { textAlign: 'center' }]} placeholder="Quantidade de Parcelas (Ex: 10)" placeholderTextColor="#4A5980" value={parcelas} onChangeText={setParcelas} keyboardType="number-pad" maxLength={2} />
+                                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                        <TextInput 
+                                            style={[styles.inputText, { textAlign: 'center', color: colors.text }]} 
+                                            placeholder="Quantidade de Parcelas (Ex: 10)" 
+                                            placeholderTextColor={colors.textDark} 
+                                            value={parcelas} 
+                                            onChangeText={setParcelas} 
+                                            keyboardType="number-pad" 
+                                            maxLength={2} 
+                                        />
                                     </View>
                                     {valorNumericoTemp > 0 && parcelas ? (
-                                        <Text style={styles.installmentPreview}>Sua dívida será dividida em {parcelas}x de R$ {valorParcelaPreview}</Text>
+                                        <Text style={[styles.installmentPreview, { color: colors.primary }]}>
+                                            Sua dívida será dividida em {parcelas}x de R$ {valorParcelaPreview}
+                                        </Text>
                                     ) : null}
                                 </View>
                             )}
                         </View>
                     )}
 
-                    <Text style={styles.label}>Conta Bancária</Text>
-                    <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalContaVisible(true)}>
+                    {/* CONTA BANCÁRIA */}
+                    <Text style={[styles.label, { color: colors.textMuted }]}>Conta Bancária</Text>
+                    <TouchableOpacity style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]} activeOpacity={0.8} onPress={() => setModalContaVisible(true)}>
                         {contaSelecionada ? (
                             <Feather name="credit-card" size={20} color={contaSelecionada.cor} style={{ marginRight: 12 }} />
                         ) : (
-                            <View style={[styles.colorDot, { backgroundColor: '#4A5980' }]} />
+                            <View style={[styles.colorDot, { backgroundColor: colors.border }]} />
                         )}
-                        <Text style={[styles.inputText, !contaSelecionada && { color: '#4A5980' }]}>
+                        <Text style={[styles.inputText, { color: contaSelecionada ? colors.text : colors.textDark }]}>
                             {contaSelecionada ? contaSelecionada.nome : 'Selecione a conta...'}
                         </Text>
-                        <Feather name="chevron-down" size={20} color="#7B8DB0" />
+                        <Feather name="chevron-down" size={20} color={colors.textMuted} />
                     </TouchableOpacity>
 
-                    <Text style={styles.label}>Categoria</Text>
-                    <TouchableOpacity style={styles.inputContainer} activeOpacity={0.8} onPress={() => setModalCategoriaVisible(true)}>
+                    {/* CATEGORIA */}
+                    <Text style={[styles.label, { color: colors.textMuted }]}>Categoria</Text>
+                    <TouchableOpacity style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]} activeOpacity={0.8} onPress={() => setModalCategoriaVisible(true)}>
                         {categoriaSelecionada ? (
                             <Feather name={categoriaSelecionada.icone as any || 'tag'} size={20} color={categoriaSelecionada.cor} style={{ marginRight: 12 }} />
                         ) : (
-                            <View style={[styles.colorDot, { backgroundColor: '#4A5980' }]} />
+                            <View style={[styles.colorDot, { backgroundColor: colors.border }]} />
                         )}
-                        <Text style={[styles.inputText, !categoriaSelecionada && { color: '#4A5980' }]}>
+                        <Text style={[styles.inputText, { color: categoriaSelecionada ? colors.text : colors.textDark }]}>
                             {categoriaSelecionada ? categoriaSelecionada.nome : 'Selecione a categoria...'}
                         </Text>
-                        <Feather name="chevron-down" size={20} color="#7B8DB0" />
+                        <Feather name="chevron-down" size={20} color={colors.textMuted} />
                     </TouchableOpacity>
 
-                    <Text style={styles.label}>Descrição</Text>
-                    <View style={styles.inputContainer}>
-                        <Feather name="edit-3" size={20} color="#7B8DB0" style={styles.inputIcon} />
-                        <TextInput style={styles.inputText} placeholder="Ex: Mercado..." placeholderTextColor="#4A5980" value={descricao} onChangeText={setDescricao} />
+                    {/* DESCRIÇÃO */}
+                    <Text style={[styles.label, { color: colors.textMuted }]}>Descrição</Text>
+                    <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Feather name="edit-3" size={20} color={colors.textMuted} style={styles.inputIcon} />
+                        <TextInput 
+                            style={[styles.inputText, { color: colors.text }]} 
+                            placeholder="Ex: Mercado..." 
+                            placeholderTextColor={colors.textDark} 
+                            value={descricao} 
+                            onChangeText={setDescricao} 
+                        />
                     </View>
 
+                    {/* DATA */}
                     {natureza === 'variavel' ? (
                         <>
-                            <Text style={styles.label}>{tipo === 'despesa' ? 'Data da Despesa' : 'Data do Recebimento'}</Text>
-                            <View style={styles.inputContainer}>
-                                <Feather name="calendar" size={20} color="#7B8DB0" style={styles.inputIcon} />
-                                <TextInput style={styles.inputText} placeholder="DD/MM/AAAA" placeholderTextColor="#4A5980" value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={10} />
+                            <Text style={[styles.label, { color: colors.textMuted }]}>{tipo === 'despesa' ? 'Data da Despesa' : 'Data do Recebimento'}</Text>
+                            <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                <Feather name="calendar" size={20} color={colors.textMuted} style={styles.inputIcon} />
+                                <TextInput style={[styles.inputText, { color: colors.text }]} placeholder="DD/MM/AAAA" placeholderTextColor={colors.textDark} value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={10} />
                             </View>
                         </>
                     ) : (
                         <>
-                            <Text style={styles.label}>{tipo === 'despesa' ? 'Dia do Vencimento (Fixo)' : 'Dia do Recebimento (Fixo)'}</Text>
-                            <View style={styles.inputContainer}>
-                                <Feather name="calendar" size={20} color="#7B8DB0" style={styles.inputIcon} />
-                                <TextInput style={styles.inputText} placeholder="Ex: 05, 10, 20" placeholderTextColor="#4A5980" value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={2} />
+                            <Text style={[styles.label, { color: colors.textMuted }]}>{tipo === 'despesa' ? 'Dia do Vencimento (Fixo)' : 'Dia do Recebimento (Fixo)'}</Text>
+                            <View style={[styles.inputContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                                <Feather name="calendar" size={20} color={colors.textMuted} style={styles.inputIcon} />
+                                <TextInput style={[styles.inputText, { color: colors.text }]} placeholder="Ex: 05, 10, 20" placeholderTextColor={colors.textDark} value={data} onChangeText={handleDataChange} keyboardType="number-pad" maxLength={2} />
                             </View>
                         </>
                     )}
 
-                    <TouchableOpacity style={styles.submitButton} onPress={handleSalvar} activeOpacity={0.8}>
-                        <Text style={styles.submitButtonText}>{isEditMode ? 'Atualizar Lançamento' : 'Salvar Lançamento'}</Text>
-                        <Feather name={isEditMode ? "refresh-cw" : "check"} size={20} color="#FFFFFF" />
+                    {/* BOTÃO SALVAR */}
+                    <TouchableOpacity style={[styles.submitButton, { backgroundColor: colors.primary }]} onPress={handleSalvar} activeOpacity={0.8}>
+                        <Text style={[styles.submitButtonText, { color: theme === 'dark' ? '#FFFFFF' : '#050A14' }]}>{isEditMode ? 'Atualizar Lançamento' : 'Salvar Lançamento'}</Text>
+                        <Feather name={isEditMode ? "refresh-cw" : "check"} size={20} color={theme === 'dark' ? '#FFFFFF' : '#050A14'} />
                     </TouchableOpacity>
 
                 </ScrollView>
             </KeyboardAvoidingView>
 
-            {/* MODAL DE CATEGORIAS COM ÍCONES */}
+            {/* MODAL DE CATEGORIAS */}
             <Modal visible={modalCategoriaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Escolha a Categoria</Text>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Escolha a Categoria</Text>
                             <TouchableOpacity onPress={() => setModalCategoriaVisible(false)} style={styles.modalCloseButton}>
-                                <Feather name="x" size={24} color="#7B8DB0" />
+                                <Feather name="x" size={24} color={colors.textMuted} />
                             </TouchableOpacity>
                         </View>
                         <FlatList data={categoriasFiltradas} keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
-                                <TouchableOpacity style={styles.listItem} onPress={() => { setCategoriaSelecionada(item); setModalCategoriaVisible(false); }}>
-                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || '#10B981'}20` }]}>
-                                        <Feather name={item.icone || 'tag'} size={16} color={item.cor || '#10B981'} />
+                                <TouchableOpacity style={[styles.listItem, { borderBottomColor: colors.border + '50' }]} onPress={() => { setCategoriaSelecionada(item); setModalCategoriaVisible(false); }}>
+                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || colors.primary}20` }]}>
+                                        <Feather name={item.icone || 'tag'} size={16} color={item.cor || colors.primary} />
                                     </View>
-                                    <Text style={styles.listText}>{item.nome}</Text>
+                                    <Text style={[styles.listText, { color: colors.text }]}>{item.nome}</Text>
                                 </TouchableOpacity>
                             )} />
                     </View>
                 </View>
             </Modal>
 
-            {/* MODAL DE CONTAS COM ÍCONE FIXO DE CARTÃO */}
+            {/* MODAL DE CONTAS */}
             <Modal visible={modalContaVisible} transparent={true} animationType="slide">
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Qual Conta?</Text>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>Qual Conta?</Text>
                             <TouchableOpacity onPress={() => setModalContaVisible(false)} style={styles.modalCloseButton}>
-                                <Feather name="x" size={24} color="#7B8DB0" />
+                                <Feather name="x" size={24} color={colors.textMuted} />
                             </TouchableOpacity>
                         </View>
 
-                        <TouchableOpacity style={styles.createAccountButton} onPress={() => { setModalContaVisible(false); setTimeout(() => { setModalCriarContaVisible(true); }, 100); }}>
-                            <Feather name="plus-circle" size={20} color="#10B981" />
-                            <Text style={styles.createAccountText}>Adicionar nova conta</Text>
+                        <TouchableOpacity 
+                            style={[styles.createAccountButton, { backgroundColor: `${colors.primary}1A`, borderColor: `${colors.primary}4D` }]} 
+                            onPress={() => { setModalContaVisible(false); setTimeout(() => { setModalCriarContaVisible(true); }, 100); }}
+                        >
+                            <Feather name="plus-circle" size={20} color={colors.primary} />
+                            <Text style={[styles.createAccountText, { color: colors.primary }]}>Adicionar nova conta</Text>
                         </TouchableOpacity>
 
                         <FlatList data={contas} keyExtractor={(item) => item.id}
                             renderItem={({ item }) => (
-                                <TouchableOpacity style={styles.listItem} onPress={() => { setContaSelecionada(item); setModalContaVisible(false); }}>
-                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || '#3B82F6'}20` }]}>
-                                        <Feather name="credit-card" size={16} color={item.cor || '#3B82F6'} />
+                                <TouchableOpacity style={[styles.listItem, { borderBottomColor: colors.border + '50' }]} onPress={() => { setContaSelecionada(item); setModalContaVisible(false); }}>
+                                    <View style={[styles.iconBoxSmall, { backgroundColor: `${item.cor || colors.secondary}20` }]}>
+                                        <Feather name="credit-card" size={16} color={item.cor || colors.secondary} />
                                     </View>
-                                    <Text style={styles.listText}>{item.nome}</Text>
+                                    <Text style={[styles.listText, { color: colors.text }]}>{item.nome}</Text>
                                 </TouchableOpacity>
                             )} />
                     </View>
                 </View>
             </Modal>
 
-            {/* MODAL CRIAR CONTA (MANTIDO IGUAL) */}
+            {/* MODAL CRIAR CONTA */}
             <Modal visible={modalCriarContaVisible} transparent={true} animationType="fade">
                 <View style={styles.modalOverlayCentered}>
-                    <View style={styles.modalCard}>
-                        <Text style={styles.modalTitle}>Nova Conta</Text>
-                        <TextInput style={styles.modalInput} placeholder="Ex: Nubank, Itaú, Santander..." placeholderTextColor="#4A5980" value={novaContaNome} onChangeText={setNovaContaNome} autoFocus />
-                        <Text style={styles.labelSmall}>Escolha uma cor identificadora:</Text>
+                    <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                        <Text style={[styles.modalTitle, { color: colors.text }]}>Nova Conta</Text>
+                        <TextInput 
+                            style={[styles.modalInput, { backgroundColor: colors.inputBg, color: colors.text }]} 
+                            placeholder="Ex: Nubank, Itaú, Santander..." 
+                            placeholderTextColor={colors.textDark} 
+                            value={novaContaNome} 
+                            onChangeText={setNovaContaNome} 
+                            autoFocus 
+                        />
+                        <Text style={[styles.labelSmall, { color: colors.textMuted }]}>Escolha uma cor identificadora:</Text>
                         <View style={styles.paletteContainer}>
                             {CORES_PALETA.map((cor) => (
-                                <TouchableOpacity key={cor} style={[styles.paletteCircle, { backgroundColor: cor }, novaContaCor === cor && styles.paletteCircleActive]} onPress={() => setNovaContaCor(cor)} activeOpacity={0.7} />
+                                <TouchableOpacity 
+                                    key={cor} 
+                                    style={[
+                                        styles.paletteCircle, 
+                                        { backgroundColor: cor }, 
+                                        novaContaCor === cor && [styles.paletteCircleActive, { borderColor: colors.text }]
+                                    ]} 
+                                    onPress={() => setNovaContaCor(cor)} 
+                                    activeOpacity={0.7} 
+                                />
                             ))}
                         </View>
                         <View style={styles.modalActions}>
                             <TouchableOpacity style={styles.modalActionButton} onPress={() => { setModalCriarContaVisible(false); setTimeout(() => { setModalContaVisible(true); }, 100); }}>
-                                <Text style={styles.modalActionTextCancel}>Cancelar</Text>
+                                <Text style={[styles.modalActionTextCancel, { color: colors.textMuted }]}>Cancelar</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity onPress={handleCriarContaRapida} style={styles.modalActionButtonPrimary}>
-                                <Text style={styles.modalActionTextConfirm}>Criar</Text>
+                            <TouchableOpacity onPress={handleCriarContaRapida} style={[styles.modalActionButtonPrimary, { backgroundColor: colors.primary }]}>
+                                <Text style={[styles.modalActionTextConfirm, { color: theme === 'dark' ? '#FFFFFF' : '#050A14' }]}>Criar</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -390,62 +470,58 @@ export default function NovaTransacaoScreen() {
 const styles = StyleSheet.create({
     scrollPadding: { paddingTop: 20, paddingBottom: 60 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, marginTop: 20 },
-    backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0B1120', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#1A2540' },
-    headerTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
-    typeSelector: { flexDirection: 'row', backgroundColor: '#0B1120', borderRadius: 16, padding: 6, borderWidth: 1, borderColor: '#1A2540', marginBottom: 32 },
+    backButton: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+    headerTitle: { fontSize: 18, fontWeight: 'bold' },
+    typeSelector: { flexDirection: 'row', borderRadius: 16, padding: 6, borderWidth: 1, marginBottom: 32 },
     typeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, gap: 8 },
-    typeText: { fontSize: 15, fontWeight: '600', color: '#7B8DB0' },
-    typeButtonDespesaActive: { backgroundColor: 'rgba(239, 68, 68, 0.1)' },
-    typeButtonReceitaActive: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+    typeText: { fontSize: 15, fontWeight: '600' },
     amountContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 40 },
-    currencySymbol: { color: '#7B8DB0', fontSize: 24, fontWeight: 'bold', marginRight: 8, marginTop: 8 },
+    currencySymbol: { fontSize: 24, fontWeight: 'bold', marginRight: 8, marginTop: 8 },
     amountInput: { fontSize: 48, fontWeight: 'bold', minWidth: 120, textAlign: 'center' },
-    label: { color: '#7B8DB0', fontSize: 13, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-    labelSmall: { color: '#4A5980', fontSize: 12, fontWeight: '600', marginBottom: 12, textTransform: 'uppercase' },
+    label: { fontSize: 13, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+    labelSmall: { fontSize: 12, fontWeight: '600', marginBottom: 12, textTransform: 'uppercase' },
     natureSelector: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-    natureButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, backgroundColor: '#0B1120', borderWidth: 1, borderColor: '#1A2540', gap: 8 },
-    natureButtonActive: { backgroundColor: '#1A2540', borderColor: '#4A5980' },
-    natureText: { fontSize: 14, fontWeight: '600', color: '#7B8DB0' },
-    inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0B1120', borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', marginBottom: 24, paddingHorizontal: 16, minHeight: 56 },
+    natureButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, borderWidth: 1, gap: 8 },
+    natureText: { fontSize: 14, fontWeight: '600' },
+    inputContainer: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, marginBottom: 24, paddingHorizontal: 16, minHeight: 56 },
     inputIcon: { marginRight: 12 },
-    inputText: { flex: 1, color: '#FFFFFF', fontSize: 16, paddingVertical: 16 },
+    inputText: { flex: 1, fontSize: 16, paddingVertical: 16 },
     
     colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 12 },
-    iconBoxSmall: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 }, // NOVO: Fundo colorido do ícone nas listas
+    iconBoxSmall: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 }, 
 
-    submitButton: { flexDirection: 'row', backgroundColor: '#10B981', borderRadius: 16, paddingVertical: 18, justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 12 },
-    submitButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+    submitButton: { flexDirection: 'row', borderRadius: 16, paddingVertical: 18, justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 12 },
+    submitButtonText: { fontSize: 16, fontWeight: 'bold' },
 
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: '#0B1120', borderTopLeftRadius: 24, borderTopRightRadius: 24, minHeight: '40%', padding: 24, borderWidth: 1, borderColor: '#1A2540' },
+    modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, minHeight: '40%', padding: 24, borderWidth: 1 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+    modalTitle: { fontSize: 18, fontWeight: 'bold' },
     modalCloseButton: { padding: 4 },
-    listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1A2540' },
-    listText: { flex: 1, color: '#FFFFFF', fontSize: 16, fontWeight: '500' },
+    listItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1 },
+    listText: { flex: 1, fontSize: 16, fontWeight: '500' },
 
-    createAccountButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(16, 185, 129, 0.1)', padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)' },
-    createAccountText: { color: '#10B981', fontSize: 16, fontWeight: 'bold', marginLeft: 12 },
+    createAccountButton: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1 },
+    createAccountText: { fontSize: 16, fontWeight: 'bold', marginLeft: 12 },
 
     modalOverlayCentered: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-    modalCard: { backgroundColor: '#0B1120', width: '100%', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: '#1A2540' },
-    modalInput: { backgroundColor: '#1A2540', color: '#FFFFFF', borderRadius: 12, padding: 16, fontSize: 16, marginTop: 8, marginBottom: 20 },
+    modalCard: { width: '100%', borderRadius: 20, padding: 24, borderWidth: 1 },
+    modalInput: { borderRadius: 12, padding: 16, fontSize: 16, marginTop: 8, marginBottom: 20 },
     modalActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
     modalActionButton: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12 },
-    modalActionButtonPrimary: { backgroundColor: '#10B981', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12 },
-    modalActionTextCancel: { color: '#7B8DB0', fontSize: 16, fontWeight: 'bold' },
-    modalActionTextConfirm: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+    modalActionButtonPrimary: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12 },
+    modalActionTextCancel: { fontSize: 16, fontWeight: 'bold' },
+    modalActionTextConfirm: { fontSize: 16, fontWeight: 'bold' },
 
     paletteContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 28 },
     paletteCircle: { width: 36, height: 36, borderRadius: 18, borderWidth: 2, borderColor: 'transparent' },
-    paletteCircleActive: { borderColor: '#FFFFFF', transform: [{ scale: 1.1 }] },
+    paletteCircleActive: { transform: [{ scale: 1.1 }] },
 
     installmentContainer: { marginBottom: 24, paddingHorizontal: 4 },
     installmentToggleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    installmentLabel: { color: '#7B8DB0', fontSize: 14, fontWeight: '600' },
-    toggleTrack: { width: 44, height: 24, backgroundColor: '#1A2540', borderRadius: 12, padding: 2, justifyContent: 'center' },
-    toggleTrackActive: { backgroundColor: '#10B981' },
-    toggleThumb: { width: 20, height: 20, backgroundColor: '#7B8DB0', borderRadius: 10 },
-    toggleThumbActive: { backgroundColor: '#FFFFFF', transform: [{ translateX: 20 }] },
-    installmentPreview: { color: '#10B981', fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: -12, marginBottom: 8 },
+    installmentLabel: { fontSize: 14, fontWeight: '600' },
+    toggleTrack: { width: 44, height: 24, borderRadius: 12, padding: 2, justifyContent: 'center' },
+    toggleThumb: { width: 20, height: 20, borderRadius: 10 },
+    toggleThumbActive: { transform: [{ translateX: 20 }] },
+    installmentPreview: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginTop: -12, marginBottom: 8 },
 });

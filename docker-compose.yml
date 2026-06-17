@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Nosso Banco de Dados PostgreSQL
+  # Banco de Dados PostgreSQL
   db:
     image: postgres:15-alpine
     container_name: finance_db
@@ -11,17 +11,17 @@ services:
       POSTGRES_PASSWORD: rootpassword
       POSTGRES_DB: finance_saas
     ports:
-      - "5432:5432"
+      - "5436:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 
-  # Nossa futura API em Python (Flask)
+  # API em Python (Flask)
   api:
     build: ./backend
     container_name: finance_api
     restart: always
     ports:
-      - "5001:5000"
+      - "5000:5000"
     volumes:
       - ./backend:/app
     environment:

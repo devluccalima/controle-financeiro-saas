@@ -1,8 +1,12 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 // Mantenha o seu IP local aqui
-const API_URL = 'http://10.0.0.72:5000'; 
+const API_URL = Platform.OS === 'android' 
+                ? 'http://10.0.2.2:5000'
+                : 'http://localhost:5000';
+
 
 const api = axios.create({
   baseURL: API_URL,

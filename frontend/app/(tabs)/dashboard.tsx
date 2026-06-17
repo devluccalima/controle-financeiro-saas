@@ -5,13 +5,23 @@ import * as SecureStore from 'expo-secure-store';
 import { useRouter } from 'expo-router';
 import { InternalBackground } from '../../components/InternalBackground';
 import api from '../../services/api';
+import { useTheme } from '../../context/ThemeContext'; // Importação do motor de temas
+
+
+
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { colors, theme } = useTheme(); // Captura a paleta de cores e o tema ativo
+
+  // ESTADOS DE PERFIL (PARA EXIBIÇÃO NO HEADER)
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState('');
+  const [loadingContext, setLoadingContext] = useState(true);
 
   // 1. O MOTOR DO TEMPO
   const [dataFiltro, setDataFiltro] = useState(new Date());
-  const [lastTap, setLastTap] = useState(0); // Estado para controlar o Double-Tap
+  const [lastTap, setLastTap] = useState(0);
 
   const nomeMes = dataFiltro.toLocaleDateString('pt-BR', { month: 'long' });
   const mesAtualFormatado = nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1) + ' ' + dataFiltro.getFullYear();
@@ -27,6 +37,23 @@ export default function DashboardScreen() {
   const [transacaoSelecionada, setTransacaoSelecionada] = useState<any>(null);
 
   useEffect(() => {
+    carregarPerfil();
+  }, []);
+
+  const carregarPerfil = async () => {
+    try {
+      const response = await api.get('/users/profile');
+      setNome(response.data.nome);
+      setEmail(response.data.email);
+    } catch (error) {
+      console.error("Erro ao carregar perfil:", error);
+      Alert.alert('Erro', 'Não foi possível carregar seus dados no momento.');
+    } finally {
+      setLoadingContext(false);
+    }
+  };
+
+  useEffect(() => {
     carregarDashboard();
   }, [dataFiltro]);
 
@@ -40,7 +67,8 @@ export default function DashboardScreen() {
       setDespesas(resumoResponse.data.despesas || 0);
       setSaldoLivre(resumoResponse.data.saldo || 0);
 
-      const transacoesResponse = await api.get(`/transactions/?mes=${mes}&ano=${ano}`);
+      const transacoesResponse = await api.get(`/transactions/?mes=${mes}&ano=${ano}&limit=10` // Pede apenas as 10 mais recentes
+      );
       setTransacoesRecentes(transacoesResponse.data || []);
 
     } catch (error) {
@@ -54,7 +82,6 @@ export default function DashboardScreen() {
     setDataFiltro(novaData);
   };
 
-  // LÓGICA DO DOUBLE-TAP: Se clicar duas vezes em menos de 300ms, volta para o mês atual
   const handleResetMes = () => {
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
@@ -87,9 +114,8 @@ export default function DashboardScreen() {
 
   const handleEditar = (transacao: any) => {
     setModalDetalhesVisible(false);
-    // Navega para a tela de edição passando o ID da transação
     router.push({ pathname: '/nova-transacao', params: { id: transacao.id } });
-  }
+  };
 
   const handleExcluir = async (id: string) => {
     Alert.alert(
@@ -104,10 +130,10 @@ export default function DashboardScreen() {
             try {
               await api.delete(`/transactions/${id}`);
               setModalDetalhesVisible(false);
-              carregarDashboard(); // Recarrega os números da tela
+              carregarDashboard();
             } catch (error) {
               console.error("Erro ao excluir:", error);
-              Alert.alert("Erro", "Não foi possível excluir o lançamento.");
+              Alert.alert("Erro", "Não foi possível excluir the lançamento.");
             }
           }
         }
@@ -122,83 +148,100 @@ export default function DashboardScreen() {
         {/* HEADER */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatar}>
-              <Feather name="user" size={20} color="#10B981" />
+            <View style={[styles.avatar, { borderColor: colors.primary + '30' }]}>
+              <Feather name="user" size={20} color={colors.primary} />
             </View>
             <View>
-              <Text style={styles.greeting}>Olá, Lucca</Text>
-              <Text style={styles.title}>Visão Geral</Text>
+              <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá, Lucca</Text>
+              <Text style={[styles.title, { color: colors.text }]}>Visão Geral</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} activeOpacity={0.7}>
-            <Feather name="log-out" size={20} color="#4A5980" />
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+            activeOpacity={0.7}
+          >
+            <Feather name="log-out" size={20} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
-        {/* SELETOR DE MÊS (AGORA COM GESTO DE RESET) */}
-        <View style={styles.monthSelector}>
+        {/* SELETOR DE MÊS */}
+        <View style={[styles.monthSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <TouchableOpacity style={styles.monthBtn} activeOpacity={0.7} onPress={() => mudarMes(-1)}>
-            <Feather name="chevron-left" size={24} color="#7B8DB0" />
+            <Feather name="chevron-left" size={24} color={colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity activeOpacity={1} onPress={handleResetMes}>
-            <Text style={styles.monthText}>{mesAtualFormatado}</Text>
+            <Text style={[styles.monthText, { color: colors.text }]}>{mesAtualFormatado}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.monthBtn} activeOpacity={0.7} onPress={() => mudarMes(1)}>
-            <Feather name="chevron-right" size={24} color="#7B8DB0" />
+            <Feather name="chevron-right" size={24} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
         {/* CARDS DE RESUMO */}
-        <View style={[styles.card, styles.heroCard]}>
+        <View style={[
+          styles.card,
+          styles.heroCard,
+          { backgroundColor: theme === 'dark' ? '#0A141A' : colors.primary + '10' }
+        ]}>
           <View style={styles.cardHeader}>
-            <View style={styles.cardIconWrapperHero}>
-              <Feather name="target" size={18} color="#10B981" />
+            <View style={[styles.cardIconWrapperHero, { backgroundColor: colors.primary + '15' }]}>
+              <Feather name="target" size={18} color={colors.primary} />
             </View>
-            <Text style={styles.heroLabel}>Saldo Livre Projetado</Text>
+            <Text style={[styles.heroLabel, { color: colors.primary }]}>Saldo Livre Projetado</Text>
           </View>
-          <Text style={styles.heroAmount}>{formatarMoeda(saldoLivre)}</Text>
-          <Text style={styles.heroSubtext}>Restante após quitação de despesas previstas</Text>
+          <Text style={[styles.heroAmount, { color: colors.text }]}>{formatarMoeda(saldoLivre)}</Text>
+          <Text style={[styles.heroSubtext, { color: colors.textDark }]}>Restante após quitação de despesas previstas</Text>
         </View>
 
         <View style={styles.row}>
-          <View style={[styles.card, styles.halfCard]}>
+          <View style={[styles.card, styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <View style={[styles.cardIconWrapper, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-                <Feather name="arrow-up-right" size={16} color="#10B981" />
+                <Feather name="arrow-up-right" size={16} color={colors.primary} />
               </View>
-              <Text style={styles.cardLabel}>Entradas</Text>
+              <Text style={[styles.cardLabel, { color: colors.textMuted }]}>Entradas</Text>
             </View>
-            <Text style={styles.cardAmount}>{formatarMoeda(receitas)}</Text>
+            <Text style={[styles.cardAmount, { color: colors.text }]}>{formatarMoeda(receitas)}</Text>
           </View>
 
-          <View style={[styles.card, styles.halfCard]}>
+          <View style={[styles.card, styles.halfCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <View style={[styles.cardIconWrapper, { backgroundColor: 'rgba(239, 68, 68, 0.1)' }]}>
-                <Feather name="arrow-down-left" size={16} color="#EF4444" />
+                <Feather name="arrow-down-left" size={16} color={colors.danger} />
               </View>
-              <Text style={styles.cardLabel}>Saídas</Text>
+              <Text style={[styles.cardLabel, { color: colors.textMuted }]}>Saídas</Text>
             </View>
-            <Text style={styles.cardAmount}>{formatarMoeda(despesas)}</Text>
+            <Text style={[styles.cardAmount, { color: colors.text }]}>{formatarMoeda(despesas)}</Text>
           </View>
         </View>
 
-        {/* LISTA DINÂMICA */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Lançamentos do Mês</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Últimos Lançamentos</Text>
+
+            <TouchableOpacity
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 4 }}
+              onPress={() => router.push('/extrato')}
+              activeOpacity={0.7}
+            >
+              <Text style={{ color: colors.primary, fontSize: 14, fontWeight: '600', marginRight: 4 }}>Ver todos</Text>
+              <Feather name="chevron-right" size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
 
           {transacoesRecentes.length === 0 ? (
-            <Text style={styles.emptyText}>Nenhuma transação neste mês.</Text>
+            <Text style={[styles.emptyText, { color: colors.textDark }]}>Nenhuma transação neste mês.</Text>
           ) : (
             transacoesRecentes.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={styles.transactionItem}
+                style={[styles.transactionItem, { backgroundColor: colors.card, borderColor: colors.border }]}
                 activeOpacity={0.7}
                 onPress={() => abrirDetalhes(item)}
               >
-                {/* CONTEÚDO DA ESQUERDA (Ícone + Textos) */}
                 <View style={[styles.transactionLeft, { flex: 1, marginRight: 12 }]}>
                   <View style={[
                     styles.transactionIcon,
@@ -207,33 +250,28 @@ export default function DashboardScreen() {
                     <Feather
                       name={item.categoria_icone || (item.tipo === 'despesa' ? "shopping-bag" : "dollar-sign")}
                       size={16}
-                      color={item.categoria_cor || (item.tipo === 'despesa' ? "#EF4444" : "#10B981")}
+                      color={item.categoria_cor || (item.tipo === 'despesa' ? colors.danger : colors.primary)}
                     />
                   </View>
 
-                  {/* A mágica acontece aqui: flex: 1 diz para este bloco respeitar o limite da tela */}
                   <View style={{ flex: 1 }}>
                     <Text
-                      style={styles.transactionName}
+                      style={[styles.transactionName, { color: colors.text }]}
                       numberOfLines={1}
                       ellipsizeMode="tail"
                     >
                       {item.descricao}
                     </Text>
-                    <Text style={styles.transactionCategory}>
+                    <Text style={[styles.transactionCategory, { color: colors.textDark }]}>
                       {item.categoria_nome} | {item.total_parcelas > 1 ? `(${item.parcela_atual}/${item.total_parcelas})` : ''}
                     </Text>
                   </View>
                 </View>
 
-                {/* CONTEÚDO DA DIREITA (Valor Financeiro Blindado) */}
-                {/* flexShrink: 0 garante que o React Native NUNCA amasse ou corte esse número */}
-                <Text
-                  style={[
-                    styles.transactionValue,
-                    { color: item.tipo === 'despesa' ? '#FFFFFF' : '#10B981', flexShrink: 0 }
-                  ]}
-                >
+                <Text style={[
+                  styles.transactionValue,
+                  { color: item.tipo === 'despesa' ? colors.text : colors.primary, flexShrink: 0 }
+                ]}>
                   {item.tipo === 'despesa' ? '- ' : '+ '}{formatarMoeda(item.valor)}
                 </Text>
               </TouchableOpacity>
@@ -243,59 +281,64 @@ export default function DashboardScreen() {
       </ScrollView>
 
       {/* BOTÃO FLUTUANTE */}
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={() => router.push('/nova-transacao')}>
-        <Feather name="plus" size={32} color="#FFFFFF" />
+      <TouchableOpacity
+        style={[styles.fab, { backgroundColor: colors.primary }]}
+        activeOpacity={0.8}
+        onPress={() => router.push('/nova-transacao')}
+      >
+        <Feather name="plus" size={32} color="#050A14" />
+        {/* Mantido o fundo escuro fixo no ícone do botão para contrastar com o verde vibrante */}
       </TouchableOpacity>
 
-      {/* MODAL DE DETALHES (AGORA COM DOIS BOTÕES LADO A LADO) */}
+      {/* MODAL DE DETALHES */}
       <Modal visible={modalDetalhesVisible} transparent={true} animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
             {transacaoSelecionada && (
               <>
                 <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Detalhes do Lançamento</Text>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>Detalhes do Lançamento</Text>
                   <TouchableOpacity onPress={() => setModalDetalhesVisible(false)} style={styles.modalCloseButton}>
-                    <Feather name="x" size={24} color="#7B8DB0" />
+                    <Feather name="x" size={24} color={colors.textMuted} />
                   </TouchableOpacity>
                 </View>
 
                 <View style={{ alignItems: 'center', marginBottom: 24 }}>
-                  <Text style={styles.detailAmount}>
+                  <Text style={[styles.detailAmount, { color: colors.text }]}>
                     {transacaoSelecionada.tipo === 'despesa' ? '- ' : ''}{formatarMoeda(transacaoSelecionada.valor)}
                   </Text>
-                  <Text style={styles.detailDesc}>{transacaoSelecionada.descricao}</Text>
+                  <Text style={[styles.detailDesc, { color: colors.textMuted }]}>{transacaoSelecionada.descricao}</Text>
                 </View>
 
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Data</Text>
-                  <Text style={styles.detailValue}>{formatarDataBR(transacaoSelecionada.data_vencimento)}</Text>
+                <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Data</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>{formatarDataBR(transacaoSelecionada.data_vencimento)}</Text>
                 </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Categoria</Text>
-                  <Text style={styles.detailValue}>{transacaoSelecionada.categoria_nome}</Text>
+                <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Categoria</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>{transacaoSelecionada.categoria_nome}</Text>
                 </View>
-                <View style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>Conta</Text>
-                  <Text style={styles.detailValue}>{transacaoSelecionada.conta_nome}</Text>
+                <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Conta</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>{transacaoSelecionada.conta_nome}</Text>
                 </View>
                 {transacaoSelecionada.total_parcelas > 1 && (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Parcelamento</Text>
-                    <Text style={styles.detailValue}>{transacaoSelecionada.parcela_atual} de {transacaoSelecionada.total_parcelas}</Text>
+                  <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                    <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Parcelamento</Text>
+                    <Text style={[styles.detailValue, { color: colors.text }]}>{transacaoSelecionada.parcela_atual} de {transacaoSelecionada.total_parcelas}</Text>
                   </View>
                 )}
 
-                {/* BOTÕES DE AÇÃO LADO A LADO */}
+                {/* BOTÕES DE AÇÃO */}
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity style={styles.editButton} onPress={() => handleEditar(transacaoSelecionada)}>
-                    <Feather name="edit-2" size={18} color="#10B981" />
-                    <Text style={styles.editButtonText}>Editar</Text>
+                    <Feather name="edit-2" size={18} color={colors.primary} />
+                    <Text style={[styles.editButtonText, { color: colors.primary }]}>Editar</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.deleteButton} onPress={() => handleExcluir(transacaoSelecionada.id)}>
-                    <Feather name="trash-2" size={18} color="#EF4444" />
-                    <Text style={styles.deleteButtonText}>Excluir</Text>
+                    <Feather name="trash-2" size={18} color={colors.danger} />
+                    <Text style={[styles.deleteButtonText, { color: colors.danger }]}>Excluir</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -312,52 +355,50 @@ const styles = StyleSheet.create({
   scrollPadding: { paddingTop: 20, paddingBottom: 100 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(16, 185, 129, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
-  greeting: { color: '#7B8DB0', fontSize: 13, marginBottom: 2 },
-  title: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
-  logoutButton: { padding: 10, backgroundColor: '#0B1120', borderRadius: 12, borderWidth: 1, borderColor: '#1A2540' },
-  monthSelector: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, backgroundColor: '#0B1120', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1, borderColor: '#1A2540' },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(16, 185, 129, 0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
+  greeting: { fontSize: 13, marginBottom: 2 },
+  title: { fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
+  logoutButton: { padding: 10, borderRadius: 12, borderWidth: 1 },
+  monthSelector: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, borderWidth: 1 },
   monthBtn: { padding: 4 },
-  monthText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
-  card: { backgroundColor: '#0B1120', borderRadius: 20, padding: 20, borderWidth: 1, borderColor: '#1A2540', marginBottom: 16 },
+  monthText: { fontSize: 16, fontWeight: '600' },
+  card: { borderRadius: 20, padding: 20, borderWidth: 1, marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
-  cardLabel: { color: '#7B8DB0', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  cardLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   cardIconWrapper: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  heroCard: { borderColor: 'rgba(16, 185, 129, 0.3)', backgroundColor: '#0A141A' },
-  cardIconWrapperHero: { width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', justifyContent: 'center', alignItems: 'center' },
-  heroLabel: { color: '#10B981', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  heroAmount: { color: '#FFFFFF', fontSize: 36, fontWeight: 'bold', letterSpacing: -1, marginBottom: 4 },
-  heroSubtext: { color: '#4A5980', fontSize: 12 },
+  heroCard: { borderColor: 'rgba(16, 185, 129, 0.3)' },
+  cardIconWrapperHero: { width: 28, height: 28, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  heroLabel: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  heroAmount: { fontSize: 36, fontWeight: 'bold', letterSpacing: -1, marginBottom: 4 },
+  heroSubtext: { fontSize: 12 },
   row: { flexDirection: 'row', gap: 16, marginBottom: 24 },
   halfCard: { flex: 1, marginBottom: 0, padding: 16 },
-  cardAmount: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
+  cardAmount: { fontSize: 20, fontWeight: 'bold', letterSpacing: -0.5 },
   section: { marginTop: 8 },
-  sectionTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '600', marginBottom: 16 },
-  emptyText: { color: '#4A5980', fontSize: 14, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
-  transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0B1120', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', marginBottom: 12 },
-  transactionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
+  emptyText: { fontSize: 14, textAlign: 'center', marginTop: 20, fontStyle: 'italic' },
+  transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
+  transactionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   transactionIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  transactionName: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  transactionCategory: { color: '#4A5980', fontSize: 12 },
-  transactionValue: { color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', minWidth: 80 },
-  fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, backgroundColor: '#10B981', justifyContent: 'center', alignItems: 'center', shadowColor: '#10B981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  transactionName: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  transactionCategory: { fontSize: 12 },
+  transactionValue: { fontSize: 15, fontWeight: 'bold', minWidth: 80 },
+  fab: { position: 'absolute', bottom: 32, right: 24, width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
 
-  // Estilos do Modal de Detalhes
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#0B1120', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, borderColor: '#1A2540', paddingBottom: 40 },
+  modalContent: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, borderWidth: 1, paddingBottom: 40 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
   modalCloseButton: { padding: 4 },
-  detailAmount: { color: '#FFFFFF', fontSize: 32, fontWeight: 'bold', letterSpacing: -1 },
-  detailDesc: { color: '#7B8DB0', fontSize: 16, marginTop: 4 },
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: '#1A2540' },
-  detailLabel: { color: '#7B8DB0', fontSize: 15 },
-  detailValue: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  detailAmount: { fontSize: 32, fontWeight: 'bold', letterSpacing: -1 },
+  detailDesc: { fontSize: 16, marginTop: 4 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16, borderBottomWidth: 1 },
+  detailLabel: { fontSize: 15 },
+  detailValue: { fontSize: 15, fontWeight: '600' },
 
-  // Layout dos Botões lado a lado
   modalActionsRow: { flexDirection: 'row', marginTop: 32, gap: 12, width: '100%' },
   editButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.3)', justifyContent: 'center' },
-  editButtonText: { color: '#10B981', fontSize: 16, fontWeight: 'bold' },
+  editButtonText: { fontSize: 16, fontWeight: 'bold' },
   deleteButton: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 14, backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(239, 68, 68, 0.3)', justifyContent: 'center' },
-  deleteButtonText: { color: '#EF4444', fontSize: 16, fontWeight: 'bold' },
+  deleteButtonText: { fontSize: 16, fontWeight: 'bold' },
 });

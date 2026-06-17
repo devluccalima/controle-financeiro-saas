@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -12,26 +12,22 @@ import { Feather } from '@expo/vector-icons';
 import { PieChart } from 'react-native-gifted-charts';
 import { useFocusEffect } from 'expo-router';
 
-import api from '../../services/api'; // Ajuste o caminho se necessário
+import api from '../../services/api';
+import { useTheme } from '../../context/ThemeContext'; // <-- Importando o motor de temas
 
-// Paleta de cores para as categorias (combinam com o Dark Mode)
+// Paleta de cores para os "fatias" do gráfico (funcionam bem em ambos os temas)
 const CORES = [
-  '#10B981', // Verde Esmeralda
-  '#3B82F6', // Azul
-  '#8B5CF6', // Roxo
-  '#F59E0B', // Laranja
-  '#EC4899', // Rosa
-  '#06B6D4', // Ciano
-  '#EF4444', // Vermelho
-  '#84CC16', // Verde Lima
+  '#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', 
+  '#EC4899', '#06B6D4', '#EF4444', '#84CC16',
 ];
 
 export default function RelatoriosScreen() {
+  const { colors } = useTheme(); // <-- Captura as cores do tema ativo
+  
   const [loading, setLoading] = useState(true);
   const [dados, setDados] = useState<any[]>([]);
   const [totalGeral, setTotalGeral] = useState(0);
   
-  // Controle de Mês e Ano atual
   const [mesAtual, setMesAtual] = useState(new Date().getMonth() + 1);
   const [anoAtual, setAnoAtual] = useState(new Date().getFullYear());
 
@@ -55,7 +51,6 @@ export default function RelatoriosScreen() {
     }
   };
 
-  // Recarrega sempre que a tela ganha foco ou o mês/ano muda
   useFocusEffect(
     useCallback(() => {
       carregarRelatorio();
@@ -84,47 +79,57 @@ export default function RelatoriosScreen() {
     return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Prepara os dados para o formato que a biblioteca de gráficos exige
   const pieData = dados.map((item, index) => ({
     value: item.percentual,
     color: CORES[index % CORES.length],
     text: `${item.percentual}%`,
-    focused: index === 0, // Destaca a maior categoria
+    focused: index === 0,
   }));
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       
       {/* Header com Navegação de Meses */}
       <View style={styles.header}>
-        <Text style={styles.title}>Relatórios</Text>
-        <View style={styles.monthSelector}>
-          <TouchableOpacity onPress={() => mudarMes('anterior')} style={styles.monthBtn}>
-            <Feather name="chevron-left" size={20} color="#10B981" />
+        <Text style={[styles.title, { color: colors.text }]}>Relatórios</Text>
+        
+        <View style={[styles.monthSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <TouchableOpacity 
+            onPress={() => mudarMes('anterior')} 
+            style={[styles.monthBtn, { backgroundColor: colors.primary + '1A' }]}
+          >
+            <Feather name="chevron-left" size={20} color={colors.primary} />
           </TouchableOpacity>
-          <Text style={styles.monthText}>{mesesNome[mesAtual - 1]} {anoAtual}</Text>
-          <TouchableOpacity onPress={() => mudarMes('proximo')} style={styles.monthBtn}>
-            <Feather name="chevron-right" size={20} color="#10B981" />
+          
+          <Text style={[styles.monthText, { color: colors.text }]}>
+            {mesesNome[mesAtual - 1]} {anoAtual}
+          </Text>
+          
+          <TouchableOpacity 
+            onPress={() => mudarMes('proximo')} 
+            style={[styles.monthBtn, { backgroundColor: colors.primary + '1A' }]}
+          >
+            <Feather name="chevron-right" size={20} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
       {loading ? (
         <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color="#10B981" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           
           {dados.length === 0 ? (
             <View style={styles.emptyState}>
-              <Feather name="pie-chart" size={48} color="#1A2540" />
-              <Text style={styles.emptyText}>Nenhuma despesa registrada neste mês.</Text>
+              <Feather name="pie-chart" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textDark }]}>Nenhuma despesa registrada neste mês.</Text>
             </View>
           ) : (
             <>
               {/* Gráfico Donut */}
-              <View style={styles.chartCard}>
+              <View style={[styles.chartCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <PieChart
                   donut
                   innerRadius={70}
@@ -133,8 +138,8 @@ export default function RelatoriosScreen() {
                   centerLabelComponent={() => {
                     return (
                       <View style={{justifyContent: 'center', alignItems: 'center'}}>
-                        <Text style={{fontSize: 16, color: '#9CA3AF', alignItems: 'center'}}>Total Gasto</Text>
-                        <Text style={{fontSize: 18, color: '#FFFFFF', fontWeight: 'bold'}}>
+                        <Text style={{fontSize: 16, color: colors.textMuted, alignItems: 'center'}}>Total Gasto</Text>
+                        <Text style={{fontSize: 18, color: colors.text, fontWeight: 'bold'}}>
                           {formatarMoeda(totalGeral)}
                         </Text>
                       </View>
@@ -144,21 +149,23 @@ export default function RelatoriosScreen() {
               </View>
 
               {/* Lista de Categorias */}
-              <Text style={styles.sectionTitle}>Detalhes por Categoria</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Detalhes por Categoria</Text>
               
-              <View style={styles.listContainer}>
+              <View style={[styles.listContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 {dados.map((item, index) => (
-                  <View key={index} style={styles.listItem}>
-                    
+                  <View 
+                    key={index} 
+                    style={[styles.listItem, { borderBottomColor: colors.border + '50' }]}
+                  >
                     <View style={styles.listLeft}>
                       <View style={[styles.colorDot, { backgroundColor: CORES[index % CORES.length] }]} />
                       <View>
-                        <Text style={styles.categoryName}>{item.categoria}</Text>
-                        <Text style={styles.categoryPercent}>{item.percentual}%</Text>
+                        <Text style={[styles.categoryName, { color: colors.text }]}>{item.categoria}</Text>
+                        <Text style={[styles.categoryPercent, { color: colors.textMuted }]}>{item.percentual}%</Text>
                       </View>
                     </View>
 
-                    <Text style={styles.categoryValue}>
+                    <Text style={[styles.categoryValue, { color: colors.danger }]}>
                       {formatarMoeda(item.total)}
                     </Text>
                     
@@ -174,23 +181,23 @@ export default function RelatoriosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050A14' },
+  container: { flex: 1 },
   header: { paddingHorizontal: 24, paddingTop: 20, paddingBottom: 10 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16 },
-  monthSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0B1120', borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#1A2540' },
-  monthBtn: { padding: 8, backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: 8 },
-  monthText: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16 },
+  monthSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 16, padding: 12, borderWidth: 1 },
+  monthBtn: { padding: 8, borderRadius: 8 },
+  monthText: { fontSize: 16, fontWeight: '600' },
   centerLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scroll: { paddingHorizontal: 24, paddingBottom: 100, paddingTop: 20 },
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 80 },
-  emptyText: { color: '#4A5980', fontSize: 16, marginTop: 16, textAlign: 'center' },
-  chartCard: { backgroundColor: '#0B1120', borderRadius: 24, borderWidth: 1, borderColor: '#1A2540', paddingVertical: 32, alignItems: 'center', marginBottom: 32, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 10 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#FFFFFF', marginBottom: 16 },
-  listContainer: { backgroundColor: '#0B1120', borderRadius: 24, borderWidth: 1, borderColor: '#1A2540', padding: 8 },
-  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' },
+  emptyText: { fontSize: 16, marginTop: 16, textAlign: 'center' },
+  chartCard: { borderRadius: 24, borderWidth: 1, paddingVertical: 32, alignItems: 'center', marginBottom: 32, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 16 },
+  listContainer: { borderRadius: 24, borderWidth: 1, padding: 8 },
+  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1 },
   listLeft: { flexDirection: 'row', alignItems: 'center' },
   colorDot: { width: 12, height: 12, borderRadius: 6, marginRight: 16 },
-  categoryName: { fontSize: 15, fontWeight: '600', color: '#FFFFFF', marginBottom: 4 },
-  categoryPercent: { fontSize: 13, color: '#9CA3AF' },
-  categoryValue: { fontSize: 16, fontWeight: 'bold', color: '#EF4444' },
+  categoryName: { fontSize: 15, fontWeight: '600', marginBottom: 4 },
+  categoryPercent: { fontSize: 13 },
+  categoryValue: { fontSize: 16, fontWeight: 'bold' },
 });

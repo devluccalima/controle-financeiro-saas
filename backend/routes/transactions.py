@@ -102,6 +102,7 @@ def get_transactions():
     user_id = get_jwt_identity()
     mes = request.args.get('mes')
     ano = request.args.get('ano')
+    limit = request.args.get('limit', type=int)
 
     # Filtra transações do usuário no mês e ano selecionado
     query = Transaction.query.filter_by(user_id=user_id, deleted_at=None)
@@ -117,6 +118,9 @@ def get_transactions():
         Transaction.id.desc()
     )
 
+    if limit:
+        query = query.limit(limit)
+        
     transacoes = query.all()
     
     return jsonify([{

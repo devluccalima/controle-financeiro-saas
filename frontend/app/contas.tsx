@@ -8,11 +8,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import api from '../services/api';
+import { useTheme } from '../context/ThemeContext'; // <-- Importando o motor de temas
 
 const OPCOES_CORES = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#64748B'];
 
 export default function ContasScreen() {
   const router = useRouter();
+  const { colors, theme } = useTheme(); // <-- Captura o tema atual
+
   const [contas, setContas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -29,7 +32,7 @@ export default function ContasScreen() {
 
   const carregarContas = async () => {
     try {
-      const response = await api.get('/accounts'); // Confirme se a rota no Flask é essa mesma
+      const response = await api.get('/accounts'); 
       setContas(response.data);
     } catch (error) {
       console.log('Erro ao buscar contas', error);
@@ -103,18 +106,18 @@ export default function ContasScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color="#7B8DB0" />
+        <TouchableOpacity onPress={() => router.back()} style={[styles.backButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="arrow-left" size={24} color={colors.textMuted} />
         </TouchableOpacity>
-        <Text style={styles.title}>Contas Bancárias</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Contas Bancárias</Text>
         <View style={{ width: 40 }} />
       </View>
 
       {loading ? (
         <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.secondary} />
         </View>
       ) : (
         <FlatList
@@ -124,25 +127,25 @@ export default function ContasScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Feather name="credit-card" size={48} color="#1A2540" />
-              <Text style={styles.emptyText}>Você ainda não possui contas cadastradas.</Text>
+              <Feather name="credit-card" size={48} color={colors.border} />
+              <Text style={[styles.emptyText, { color: colors.textDark }]}>Você ainda não possui contas cadastradas.</Text>
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.accountItem}>
+            <View style={[styles.accountItem, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.accountInfo}>
                 <View style={[styles.iconBox, { backgroundColor: `${item.cor}20` }]}> 
-                  <Feather name="credit-card" size={18} color={item.cor || '#3B82F6'} />
+                  <Feather name="credit-card" size={18} color={item.cor || colors.secondary} />
                 </View>
-                <Text style={styles.accountName}>{item.nome}</Text>
+                <Text style={[styles.accountName, { color: colors.text }]}>{item.nome}</Text>
               </View>
               
               <View style={styles.actionsBox}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => abrirModalEdicao(item)}>
-                  <Feather name="edit-2" size={18} color="#9CA3AF" />
+                  <Feather name="edit-2" size={18} color={colors.textDark} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => handleExcluirConta(item.id, item.nome)}>
-                  <Feather name="trash-2" size={18} color="#EF4444" />
+                  <Feather name="trash-2" size={18} color={colors.danger} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -150,42 +153,53 @@ export default function ContasScreen() {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} activeOpacity={0.8} onPress={abrirModalCriacao}>
-        <Feather name="plus" size={24} color="#050A14" />
+      <TouchableOpacity 
+        style={[styles.fab, { backgroundColor: colors.secondary, shadowColor: colors.secondary }]} 
+        activeOpacity={0.8} 
+        onPress={abrirModalCriacao}
+      >
+        <Feather name="plus" size={24} color={theme === 'dark' ? '#050A14' : '#FFFFFF'} />
       </TouchableOpacity>
 
       <Modal visible={modalVisivel} transparent animationType="slide">
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.modalContent}>
+        <KeyboardAvoidingView 
+          style={[styles.modalOverlay, { backgroundColor: theme === 'dark' ? 'rgba(5, 10, 20, 0.8)' : 'rgba(0, 0, 0, 0.5)' }]} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={[styles.modalContent, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {contaEditando ? 'Editar Conta' : 'Nova Conta'}
               </Text>
               <TouchableOpacity onPress={() => setModalVisivel(false)}>
-                <Feather name="x" size={24} color="#7B8DB0" />
+                <Feather name="x" size={24} color={colors.textMuted} />
               </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
               
-              <Text style={styles.inputLabel}>Nome do Banco/Instituição</Text>
-              <View style={styles.inputWrapper}>
+              <Text style={[styles.inputLabel, { color: colors.textDark }]}>Nome do Banco/Instituição</Text>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.inputBg, borderColor: colors.border }]}>
                 <Feather name="credit-card" size={20} color={corSelecionada} style={{ marginRight: 10 }} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Ex: Nubank, Itaú..."
-                  placeholderTextColor="#3A4560"
+                  placeholderTextColor={colors.textDark}
                   value={novaContaNome}
                   onChangeText={setNovaContaNome}
                 />
               </View>
 
-              <Text style={styles.inputLabel}>Cor de Identificação</Text>
+              <Text style={[styles.inputLabel, { color: colors.textDark }]}>Cor de Identificação</Text>
               <View style={styles.optionsRow}>
                 {OPCOES_CORES.map(cor => (
                   <TouchableOpacity 
                     key={cor} 
-                    style={[styles.colorOption, { backgroundColor: cor }, corSelecionada === cor && styles.optionSelected]}
+                    style={[
+                      styles.colorOption, 
+                      { backgroundColor: cor }, 
+                      corSelecionada === cor && [styles.optionSelected, { borderColor: colors.text }]
+                    ]}
                     onPress={() => setCorSelecionada(cor)}
                   />
                 ))}
@@ -197,9 +211,9 @@ export default function ContasScreen() {
                 disabled={salvando}
               >
                 {salvando ? (
-                  <ActivityIndicator color="#050A14" />
+                  <ActivityIndicator color={theme === 'dark' ? '#050A14' : '#FFFFFF'} />
                 ) : (
-                  <Text style={styles.btnPrimaryText}>Salvar Conta</Text>
+                  <Text style={[styles.btnPrimaryText, { color: theme === 'dark' ? '#050A14' : '#FFFFFF' }]}>Salvar Conta</Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
@@ -212,34 +226,34 @@ export default function ContasScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050A14' },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingBottom: 20, paddingTop: 10 },
-  backButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0E1628', borderWidth: 1, borderColor: '#1A2540', alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
+  backButton: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  title: { fontSize: 20, fontWeight: 'bold' },
   centerLoading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContainer: { paddingHorizontal: 24, paddingBottom: 100 },
   emptyState: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
-  emptyText: { color: '#4A5980', fontSize: 16, marginTop: 16 },
-  accountItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#0B1120', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', marginBottom: 12 },
+  emptyText: { fontSize: 16, marginTop: 16 },
+  accountItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 16, borderWidth: 1, marginBottom: 12 },
   accountInfo: { flexDirection: 'row', alignItems: 'center' },
   iconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  accountName: { fontSize: 16, fontWeight: '600', color: '#FFFFFF' },
+  accountName: { fontSize: 16, fontWeight: '600' },
   actionsBox: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   actionBtn: { padding: 4 },
-  fab: { position: 'absolute', bottom: 30, right: 24, width: 60, height: 60, borderRadius: 30, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
+  fab: { position: 'absolute', bottom: 30, right: 24, width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 10 },
   
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(5, 10, 20, 0.8)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#0B1120', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, borderWidth: 1, borderColor: '#1A2540', maxHeight: '85%' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, borderWidth: 1, maxHeight: '85%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
-  inputLabel: { fontSize: 12, fontWeight: '600', color: '#4A5980', marginBottom: 12, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.8 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0E1628', borderRadius: 16, borderWidth: 1, borderColor: '#1A2540', paddingHorizontal: 16, height: 56 },
-  input: { flex: 1, fontSize: 16, color: '#FFFFFF', height: '100%' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold' },
+  inputLabel: { fontSize: 12, fontWeight: '600', marginBottom: 12, marginTop: 16, textTransform: 'uppercase', letterSpacing: 0.8 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: 1, paddingHorizontal: 16, height: 56 },
+  input: { flex: 1, fontSize: 16, height: '100%' },
   
   optionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   colorOption: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: 'transparent' },
-  optionSelected: { borderColor: '#FFFFFF', transform: [{ scale: 1.1 }] },
+  optionSelected: { transform: [{ scale: 1.1 }] },
   
   btnPrimary: { borderRadius: 16, height: 56, alignItems: 'center', justifyContent: 'center', marginTop: 32, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 8 },
-  btnPrimaryText: { fontSize: 16, fontWeight: 'bold', color: '#050A14' },
+  btnPrimaryText: { fontSize: 16, fontWeight: 'bold' },
 });
