@@ -122,7 +122,7 @@ export default function PerfilScreen() {
             <Feather name="user" size={20} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput 
               style={[styles.inputText, { color: colors.text }]} 
-              placeholder="Ex: Lucca Lima" 
+              placeholder="Ex: Seu Nome Completo" 
               placeholderTextColor={colors.textDark} 
               value={nome} 
               onChangeText={setNome} 
@@ -134,7 +134,7 @@ export default function PerfilScreen() {
             <Feather name="mail" size={20} color={colors.textMuted} style={styles.inputIcon} />
             <TextInput 
               style={[styles.inputText, { color: colors.text }]} 
-              placeholder="Ex: lucca@email.com" 
+              placeholder="Ex: seuemail@email.com" 
               placeholderTextColor={colors.textDark} 
               value={email} 
               onChangeText={setEmail}

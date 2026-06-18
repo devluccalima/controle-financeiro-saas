@@ -16,7 +16,6 @@ export default function DashboardScreen() {
 
   // ESTADOS DE PERFIL (PARA EXIBIÇÃO NO HEADER)
   const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
   const [loadingContext, setLoadingContext] = useState(true);
 
   // 1. O MOTOR DO TEMPO
@@ -44,7 +43,6 @@ export default function DashboardScreen() {
     try {
       const response = await api.get('/users/profile');
       setNome(response.data.nome);
-      setEmail(response.data.email);
     } catch (error) {
       console.error("Erro ao carregar perfil:", error);
       Alert.alert('Erro', 'Não foi possível carregar seus dados no momento.');
@@ -102,11 +100,6 @@ export default function DashboardScreen() {
     return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
   };
 
-  const handleLogout = async () => {
-    await SecureStore.deleteItemAsync('userToken');
-    router.replace('/');
-  };
-
   const abrirDetalhes = (transacao: any) => {
     setTransacaoSelecionada(transacao);
     setModalDetalhesVisible(true);
@@ -152,17 +145,10 @@ export default function DashboardScreen() {
               <Feather name="user" size={20} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá, Lucca</Text>
+              <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá, {nome}</Text>
               <Text style={[styles.title, { color: colors.text }]}>Visão Geral</Text>
             </View>
           </View>
-          <TouchableOpacity
-            onPress={handleLogout}
-            style={[styles.logoutButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-            activeOpacity={0.7}
-          >
-            <Feather name="log-out" size={20} color={colors.textMuted} />
-          </TouchableOpacity>
         </View>
 
         {/* SELETOR DE MÊS */}

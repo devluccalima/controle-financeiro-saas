@@ -1,14 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useTheme } from '../../context/ThemeContext'; // <-- Importando o motor de temas
+import api from '../../services/api';
 
 export default function AjustesScreen() {
   const router = useRouter();
   const { theme, colors, toggleTheme } = useTheme(); // <-- Puxando tema, cores e a função de trocar
+  
+  const [nome, setNome] = useState('');
+  const [loadingContext, setLoadingContext] = useState(true);
+
+  useEffect(() => {
+    carregarPerfil();
+  }, []);
+
+  const carregarPerfil = async () => {
+    try {
+      const response = await api.get('/users/profile');
+      setNome(response.data.nome);
+    } catch (error) {
+      console.error("Erro ao carregar perfil:", error);
+      Alert.alert('Erro', 'Não foi possível carregar seus dados no momento.');
+    } finally {
+      setLoadingContext(false);
+    }
+  };
+
 
   const handleLogout = () => {
     Alert.alert(
@@ -60,7 +81,8 @@ export default function AjustesScreen() {
               <Text style={[styles.avatarText, { color: colors.primary }]}>L</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={[styles.profileName, { color: colors.text }]}>Lucca</Text>
+              {/* o Tipo de contar vai mudar depois de acordo com o tipo de conta vinculado ao e-mail do usuário */}
+              <Text style={[styles.profileName, { color: colors.text }]}>{nome}</Text> 
               <Text style={[styles.profileEmail, { color: colors.primary }]}>Conta Premium</Text>
             </View>
             <TouchableOpacity style={[styles.editProfileBtn, { backgroundColor: `${colors.primary}1A` }]}
