@@ -109,9 +109,6 @@ export default function PerfilScreen() {
               <Text style={[styles.avatarGiganteText, { color: colors.primary }]}>
                 {nome ? nome.charAt(0).toUpperCase() : 'L'}
               </Text>
-              <View style={[styles.avatarBadge, { backgroundColor: colors.primary }]}>
-                <Feather name="camera" size={14} color={theme === 'dark' ? '#050A14' : '#FFFFFF'} />
-              </View>
             </View>
           </View>
 
