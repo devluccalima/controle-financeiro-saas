@@ -6,17 +6,16 @@ import { useRouter } from 'expo-router';
 import { InternalBackground } from '../../components/InternalBackground';
 import api from '../../services/api';
 import { useTheme } from '../../context/ThemeContext'; // Importação do motor de temas
-
-
+import { useUser } from '../../context/UserContext'; // Importação do contexto de usuário
 
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { colors, theme } = useTheme(); // Captura a paleta de cores e o tema ativo
+  const { user } = useUser(); // Captura os dados do usuário do contexto
 
   // ESTADOS DE PERFIL (PARA EXIBIÇÃO NO HEADER)
-  const [nome, setNome] = useState('');
-  const [loadingContext, setLoadingContext] = useState(true);
+  
 
   // 1. O MOTOR DO TEMPO
   const [dataFiltro, setDataFiltro] = useState(new Date());
@@ -34,23 +33,7 @@ export default function DashboardScreen() {
   // 3. ESTADOS DO MODAL DE DETALHES
   const [modalDetalhesVisible, setModalDetalhesVisible] = useState(false);
   const [transacaoSelecionada, setTransacaoSelecionada] = useState<any>(null);
-
-  useEffect(() => {
-    carregarPerfil();
-  }, []);
-
-  const carregarPerfil = async () => {
-    try {
-      const response = await api.get('/users/profile');
-      setNome(response.data.nome);
-    } catch (error) {
-      console.error("Erro ao carregar perfil:", error);
-      Alert.alert('Erro', 'Não foi possível carregar seus dados no momento.');
-    } finally {
-      setLoadingContext(false);
-    }
-  };
-
+ 
   useEffect(() => {
     carregarDashboard();
   }, [dataFiltro]);
@@ -134,6 +117,17 @@ export default function DashboardScreen() {
     );
   };
 
+  const obterPrimeiroEUltimoNome = (nomeCompleto?: string) => {
+  if (!nomeCompleto) return '';
+  
+  const partes = nomeCompleto.trim().split(' '); // Divide o nome pelos espaços
+  
+  if (partes.length === 1) return partes[0]; // Se tiver só um nome, retorna ele mesmo
+  
+  // Retorna a primeira parte + espaço + a última parte
+  return `${partes[0]} ${partes[partes.length - 1]}`;
+};
+
   return (
     <InternalBackground>
       <ScrollView contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
@@ -145,7 +139,7 @@ export default function DashboardScreen() {
               <Feather name="user" size={20} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá, {nome}</Text>
+              <Text style={[styles.greeting, { color: colors.textMuted }]}>Olá, {obterPrimeiroEUltimoNome(user?.nome)}</Text>
               <Text style={[styles.title, { color: colors.text }]}>Visão Geral</Text>
             </View>
           </View>

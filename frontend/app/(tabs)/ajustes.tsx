@@ -5,30 +5,15 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useTheme } from '../../context/ThemeContext'; // <-- Importando o motor de temas
+import {useUser} from '../../context/UserContext'; // <-- Importando o contexto de usuário
 import api from '../../services/api';
 
 export default function AjustesScreen() {
   const router = useRouter();
   const { theme, colors, toggleTheme } = useTheme(); // <-- Puxando tema, cores e a função de trocar
+  const { user } = useUser(); // <-- Puxando o usuário do contexto
   
-  const [nome, setNome] = useState('');
-  const [loadingContext, setLoadingContext] = useState(true);
-
-  useEffect(() => {
-    carregarPerfil();
-  }, []);
-
-  const carregarPerfil = async () => {
-    try {
-      const response = await api.get('/users/profile');
-      setNome(response.data.nome);
-    } catch (error) {
-      console.error("Erro ao carregar perfil:", error);
-      Alert.alert('Erro', 'Não foi possível carregar seus dados no momento.');
-    } finally {
-      setLoadingContext(false);
-    }
-  };
+  const [nome] = useState('');
 
 
   const handleLogout = () => {
@@ -68,6 +53,17 @@ export default function AjustesScreen() {
     </TouchableOpacity>
   );
 
+  const obterPrimeiroEUltimoNome = (nomeCompleto?: string) => {
+  if (!nomeCompleto) return '';
+  
+  const partes = nomeCompleto.trim().split(' '); // Divide o nome pelos espaços
+  
+  if (partes.length === 1) return partes[0]; // Se tiver só um nome, retorna ele mesmo
+  
+  // Retorna a primeira parte + espaço + a última parte
+  return `${partes[0]} ${partes[partes.length - 1]}`;
+};
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -78,11 +74,13 @@ export default function AjustesScreen() {
 
           <View style={[styles.profileCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.avatar, { backgroundColor: `${colors.primary}20` }]}>
-              <Text style={[styles.avatarText, { color: colors.primary }]}>L</Text>
+              <Text style={[styles.avatarText, { color: colors.primary }]}>
+                {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
+              </Text>
             </View>
             <View style={styles.profileInfo}>
               {/* o Tipo de contar vai mudar depois de acordo com o tipo de conta vinculado ao e-mail do usuário */}
-              <Text style={[styles.profileName, { color: colors.text }]}>{nome}</Text> 
+              <Text style={[styles.profileName, { color: colors.text }]}>{obterPrimeiroEUltimoNome(user?.nome)}</Text> 
               <Text style={[styles.profileEmail, { color: colors.primary }]}>Conta Premium</Text>
             </View>
             <TouchableOpacity style={[styles.editProfileBtn, { backgroundColor: `${colors.primary}1A` }]}

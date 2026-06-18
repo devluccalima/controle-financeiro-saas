@@ -8,13 +8,15 @@ import { useRouter } from 'expo-router';
 import { InternalBackground } from '../components/InternalBackground';
 import api from '../services/api';
 import { useTheme } from '../context/ThemeContext';
+import { useUser } from '../context/UserContext';
 
 export default function PerfilScreen() {
   const router = useRouter();
   const { colors, theme } = useTheme();
+  const { user, setUser } = useUser();
 
-  const [nome, setNome] = useState('');
-  const [email, setEmail] = useState('');
+  const [nome, setNome] = useState(user?.nome || '');
+  const [email, setEmail] = useState(user?.email || '');
   const [senhaAtual, setSenhaAtual] = useState('');
   const [novaSenha, setNovaSenha] = useState('');
   
@@ -42,32 +44,26 @@ export default function PerfilScreen() {
   // 2. SALVANDO AS ALTERAÇÕES (CONECTADO COM O PUT)
   const handleSalvar = async () => {
     const payload: any = {};
-    
-    // Só envia o que realmente estiver preenchido
     if (nome.trim()) payload.nome = nome;
     if (email.trim()) payload.email = email;
     
-    // Lógica de segurança para a senha
     if (novaSenha) {
       if (!senhaAtual) {
-        Alert.alert('Atenção', 'Para definir uma nova senha, você precisa digitar a senha atual.');
+        Alert.alert('Atenção', 'Para definir uma nova senha, precisa de digitar a senha atual.');
         return;
       }
       payload.senha_atual = senhaAtual;
       payload.nova_senha = novaSenha;
     }
 
-    if (Object.keys(payload).length === 0) {
-      Alert.alert('Aviso', 'Nenhuma alteração foi preenchida.');
-      return;
-    }
-
     setSalvando(true);
     try {
-      // Fazendo a requisição PUT para o backend
-      await api.put('/users/profile', payload);
+      const response = await api.put('/users/profile', payload);
       
-      Alert.alert('Sucesso', 'Seu perfil foi atualizado!', [
+      // MÁGICA AQUI: Atualiza os dados globalmente com o retorno da API
+      setUser(response.data.usuario); 
+      
+      Alert.alert('Sucesso', 'O seu perfil foi atualizado!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
     } catch (error: any) {
@@ -77,16 +73,6 @@ export default function PerfilScreen() {
       setSalvando(false);
     }
   };
-
-  if (loadingContext) {
-    return (
-      <InternalBackground>
-        <View style={styles.centerLoading}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </InternalBackground>
-    );
-  }
 
   return (
     <InternalBackground>
@@ -107,7 +93,7 @@ export default function PerfilScreen() {
           <View style={styles.avatarContainer}>
             <View style={[styles.avatarGigante, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}>
               <Text style={[styles.avatarGiganteText, { color: colors.primary }]}>
-                {nome ? nome.charAt(0).toUpperCase() : 'L'}
+                {nome ? nome.charAt(0).toUpperCase() : '?'}
               </Text>
             </View>
           </View>

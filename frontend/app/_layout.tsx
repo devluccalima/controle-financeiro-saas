@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 
 // Importamos o NOSSO ThemeProvider
 import { ThemeProvider as AppThemeProvider } from '../context/ThemeContext'; 
+import { UserProvider } from '../context/UserContext';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
@@ -17,6 +18,7 @@ export default function RootLayout() {
 
   return (
     <AppThemeProvider> 
+      <UserProvider>
       <NavigationThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -24,6 +26,7 @@ export default function RootLayout() {
         </Stack>
         <StatusBar style="auto" />
       </NavigationThemeProvider>
+      </UserProvider>
     </AppThemeProvider>
   );
 }

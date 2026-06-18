@@ -19,8 +19,11 @@ import * as SecureStore from 'expo-secure-store';
 import api from "../services/api";
 import AnimatedBackground from '../components/AnimatedBackground';
 
+import { useUser } from '../context/UserContext'; // <-- Importando o contexto de usuário
+
 export default function LoginScreen() {
   const router = useRouter();
+  const { carregarPerfil } = useUser(); // <-- Puxando a função de carregar perfil do contexto
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -47,6 +50,7 @@ export default function LoginScreen() {
       if (response.status === 200) {
         const token = response.data.token || response.data.access_token; 
         await SecureStore.setItemAsync('userToken', token);
+        await carregarPerfil(); // <-- Carrega o perfil do usuário após o login
         
         setEmail("");
         setPassword("");
