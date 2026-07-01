@@ -24,6 +24,8 @@ services:
       - "5000:5000"
     volumes:
       - ./backend:/app
+    env_file:
+      - ./backend/.env
     environment:
       - DATABASE_URL=postgresql://root:rootpassword@db:5432/finance_saas
     depends_on:

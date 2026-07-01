@@ -10,17 +10,18 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    ActivityIndicator, // <-- NOVO IMPORT
+    Alert // <-- NOVO IMPORT
 } from "react-native";
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import AnimatedBackground from '../components/AnimatedBackground';
 
-
-// --- TELA DE RECUPERAÇÃO ---
 export default function RecoverScreen() {
     const router = useRouter();
     const [email, setEmail] = useState("");
+    const [isLoading, setIsLoading] = useState(false); // <-- ESTADO DE LOADING
 
     const cardAnim = useRef(new Animated.Value(60)).current;
     const cardOpacity = useRef(new Animated.Value(0)).current;
@@ -40,26 +41,53 @@ export default function RecoverScreen() {
         ]).start();
     }, [cardAnim, cardOpacity, logoAnim, logoOpacity]);
 
-    const handleRecover = () => {
+    const handleRecover = async () => {
         if (!email) {
-            alert("Por favor, digite seu e-mail.");
+            Alert.alert("Atenção", "Por favor, digite seu e-mail.");
             return;
         }
-        console.log("Enviando link de recuperação para:", email);
+
+        setIsLoading(true);
+
+        try {
+            // SUBSTITUA PELO SEU IP LOCAL E PORTA DA API
+            const response = await fetch('http://192.168.28.6:5000/auth/forgot-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ email }),
+            });
+
+            const data = await response.json();
+
+            // Mostra a mensagem de sucesso que o backend enviou
+            Alert.alert("Quase lá!", data.mensagem);
+
+            // Redireciona para a Tela 2 e já envia o e-mail preenchido por parâmetro
+            router.push({
+                pathname: '/reset-password',
+                params: { emailParam: email }
+            });
+
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Erro", "Não foi possível conectar ao servidor. Tente novamente.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
         <View style={styles.root}>
             <StatusBar barStyle="light-content" backgroundColor="#050A14" />
-
-            {/* Background */}
             <AnimatedBackground />
 
             <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
                 <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
                     <Animated.View style={[styles.header, { transform: [{ translateY: logoAnim }], opacity: logoOpacity }]}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton} disabled={isLoading}>
                             <Feather name="arrow-left" size={24} color="#7B8DB0" />
                         </TouchableOpacity>
                         <View style={styles.logoContainer}>
@@ -92,16 +120,33 @@ export default function RecoverScreen() {
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
+                                    editable={!isLoading} // Bloqueia digitação enquanto carrega
                                 />
                             </View>
                         </View>
 
-                        <TouchableOpacity style={styles.btnPrimary} onPress={handleRecover} activeOpacity={0.85}>
-                            <Feather name="send" size={18} color="#050A14" />
-                            <Text style={styles.btnPrimaryText}>Enviar Link</Text>
+                        <TouchableOpacity 
+                            style={styles.btnPrimary} 
+                            onPress={handleRecover} 
+                            activeOpacity={0.85}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator color="#050A14" />
+                            ) : (
+                                <>
+                                    <Feather name="send" size={18} color="#050A14" />
+                                    <Text style={styles.btnPrimaryText}>Enviar Link</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.btnSecondary} onPress={() => router.back()} activeOpacity={0.85}>
+                        <TouchableOpacity 
+                            style={styles.btnSecondary} 
+                            onPress={() => router.back()} 
+                            activeOpacity={0.85}
+                            disabled={isLoading}
+                        >
                             <Text style={styles.btnSecondaryText}>Cancelar</Text>
                         </TouchableOpacity>
 
@@ -112,6 +157,7 @@ export default function RecoverScreen() {
     );
 }
 
+// ... styles continuam idênticos ao que você mandou ...
 const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: "#050A14" },
     flex: { flex: 1 },

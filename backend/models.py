@@ -11,6 +11,8 @@ class User(db.Model):
     nome = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+    reset_token = db.Column(db.String(6), nullable=True) # Token para reset de senha
+    reset_token_expiration = db.Column(db.DateTime, nullable=True) # Expiração do token de reset de senha
     
     # Auditoria
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
